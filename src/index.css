@@ -1,0 +1,336 @@
+/* QueueSmart — design system & app shell
+   Owner: Armaan (setup / routing / nav / layout).
+   These tokens and component classes are SHARED. Build every screen on them so
+   QueueSmart reads as one product. Please don't hardcode colors in screens —
+   reach for the variables and the .btn / .input / .card / .badge classes below. */
+
+:root {
+  /* Surfaces */
+  --bg: #f4f5fb;
+  --surface: #ffffff;
+  --surface-sunken: #eef0f9;
+  --ink: #1a1b2e;
+  --muted: #63667e;
+  --faint: #8b8ea6;
+  --border: #e3e5f1;
+  --border-strong: #d3d6e8;
+
+  /* Iris — the QueueSmart brand primary */
+  --primary: #4b45d1;
+  --primary-strong: #3a34b8;
+  --primary-soft: #ecebfb;
+  --on-primary: #ffffff;
+
+  /* Queue-status semantics (User Queue Status + Admin Queue Management) */
+  --waiting: #656a8c;         /* neutral — still in line */
+  --waiting-soft: #eceef6;
+  --almost: #d98600;          /* amber — almost your turn */
+  --almost-soft: #fbeecd;
+  --served: #12946a;          /* green — served / done */
+  --served-soft: #dcf1e8;
+  --left: #d84656;            /* red — left / removed */
+  --left-soft: #fbe4e7;
+
+  /* Priority semantics (Service Management) */
+  --pri-low: #4b45d1;
+  --pri-med: #d98600;
+  --pri-high: #d84656;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(26, 27, 46, 0.06), 0 1px 3px rgba(26, 27, 46, 0.05);
+  --shadow-md: 0 6px 16px -6px rgba(26, 27, 46, 0.16), 0 2px 6px -2px rgba(26, 27, 46, 0.08);
+
+  /* Shape */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Type */
+  --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+  --maxw: 1120px;
+
+  color-scheme: light;
+  font-family: var(--font-body);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Reset ---- */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+body {
+  min-height: 100svh;
+  line-height: 1.55;
+  background:
+    radial-gradient(1100px 420px at 82% -160px, rgba(75, 69, 209, 0.10), transparent 60%),
+    var(--bg);
+}
+img, svg { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+
+code {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--surface-sunken);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+/* ---- Headings ---- */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+h1 { font-size: clamp(2rem, 1.35rem + 2.7vw, 3.15rem); letter-spacing: -0.03em; }
+h2 { font-size: clamp(1.4rem, 1.1rem + 1.2vw, 1.9rem); }
+h3 { font-size: 1.15rem; }
+
+/* ---- Layout ---- */
+.container {
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding: 32px 24px 72px;
+}
+
+/* ---- Navbar ---- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  max-width: var(--maxw);
+  margin-inline: auto;
+  height: 64px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  flex: none;
+}
+.brand-smart { color: var(--primary); }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-links::-webkit-scrollbar { display: none; }
+.nav-link {
+  padding: 8px 13px;
+  border-radius: var(--radius-pill);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.nav-link:hover { color: var(--ink); background: var(--surface-sunken); }
+.nav-link.active { color: var(--primary); background: var(--primary-soft); }
+.nav-spacer { flex: 1; }
+.nav-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 11px 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.04s ease, background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--primary-strong); box-shadow: var(--shadow-md); }
+.btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--border-strong); }
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+.btn-sm { padding: 8px 14px; font-size: 0.85rem; }
+
+/* ---- Cards ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Form controls (shared so every form looks the same) ---- */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.label { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+.input, .select, .textarea {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.input-error, .input-error:focus { border-color: var(--left); box-shadow: 0 0 0 3px var(--left-soft); }
+.error-text { color: var(--left); font-size: 0.8rem; }
+.hint { color: var(--faint); font-size: 0.8rem; }
+
+/* ---- Badges: status + priority ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge-waiting { color: var(--waiting); background: var(--waiting-soft); }
+.badge-almost  { color: var(--almost);  background: var(--almost-soft); }
+.badge-served  { color: var(--served);  background: var(--served-soft); }
+.badge-left    { color: var(--left);    background: var(--left-soft); }
+.badge-low  { color: var(--pri-low);  background: var(--primary-soft); }
+.badge-med  { color: var(--pri-med);  background: var(--almost-soft); }
+.badge-high { color: var(--pri-high); background: var(--left-soft); }
+
+/* ---- Queue track: QueueSmart's signature "where am I in line" motif ---- */
+.qtrack { display: flex; align-items: center; }
+.qdot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  flex: none;
+}
+.qbar { width: 40px; height: 3px; background: var(--border-strong); flex: none; }
+.qdot.done { background: var(--served); border-color: var(--served); }
+.qbar.done { background: var(--served); }
+.qdot.active { background: var(--almost); border-color: var(--almost); box-shadow: 0 0 0 6px var(--almost-soft); }
+@media (max-width: 560px) { .qbar { width: 20px; } }
+
+/* ---- Hero (Home) ---- */
+.hero { display: grid; gap: 18px; padding: 40px 0 8px; }
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.hero-title { max-width: 17ch; }
+.hero-sub { max-width: 54ch; color: var(--muted); font-size: 1.1rem; }
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.hero-track {
+  margin-top: 20px;
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  display: inline-flex;
+  flex-direction: column;
+  gap: 14px;
+  width: fit-content;
+  max-width: 100%;
+}
+.hero-track-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 28px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ---- Section + feature grid (Home app map) ---- */
+.section-head { margin: 56px 0 20px; display: grid; gap: 6px; }
+.grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.feature { display: flex; flex-direction: column; gap: 8px; }
+.feature p { color: var(--muted); font-size: 0.92rem; }
+.feature-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip-link {
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.chip-link:hover { background: var(--primary-soft); color: var(--primary); }
+
+/* ---- Footer ---- */
+.footer { border-top: 1px solid var(--border); background: var(--surface); }
+.footer-inner {
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--faint);
+  font-size: 0.82rem;
+}
+
+/* ---- 404 ---- */
+.notfound { text-align: center; padding: 72px 0; display: grid; gap: 14px; justify-items: center; }
+.notfound-code {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* ---- Small utilities ---- */
+.muted { color: var(--muted); }
+.stack { display: grid; gap: 16px; }
+.row { display: flex; align-items: center; gap: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
