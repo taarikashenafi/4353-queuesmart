@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { findUser } from '../data/mockUsers.js'
+import { loginUser } from '../api/auth.js'
 import { validateEmail, validatePassword } from '../utils/validation.js'
 import './auth.css'
 
@@ -9,6 +9,7 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({ email: '', password: '' })
   const [authError, setAuthError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -18,7 +19,7 @@ export default function Login() {
     setAuthError('')
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
 
     const nextErrors = {
@@ -31,15 +32,18 @@ export default function Login() {
 
     if (Object.values(nextErrors).some(Boolean)) return
 
-    const user = findUser(form.email, form.password)
+    setSubmitting(true)
+    try {
+      const { user, token } = await loginUser(form)
 
-    if (!user) {
-      setAuthError('Invalid email or password.')
-      return
+      localStorage.setItem('qs_user', JSON.stringify(user))
+      localStorage.setItem('qs_token', token)
+      navigate(user.role === 'admin' ? '/admin' : '/dashboard')
+    } catch (error) {
+      setAuthError(error.message)
+    } finally {
+      setSubmitting(false)
     }
-
-    localStorage.setItem('qs_user', JSON.stringify(user))
-    navigate(user.role === 'admin' ? '/admin' : '/dashboard')
   }
 
   return (
@@ -95,7 +99,9 @@ export default function Login() {
               {errors.password && <p id="login-password-error" className="auth-field-error">{errors.password}</p>}
             </div>
 
-            <button className="auth-submit" type="submit">Log in</button>
+            <button className="auth-submit" type="submit" disabled={submitting}>
+              {submitting ? 'Logging in…' : 'Log in'}
+            </button>
           </form>
 
           <p className="auth-switch">
