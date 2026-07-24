@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { emailTaken, mockUsers } from '../data/mockUsers.js'
+import { registerUser } from '../api/auth.js'
 import { validateConfirm, validateEmail, validatePassword } from '../utils/validation.js'
 import './auth.css'
 
@@ -8,34 +8,40 @@ export default function Register() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '', confirm: '' })
   const [errors, setErrors] = useState({ email: '', password: '', confirm: '' })
+  const [authError, setAuthError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   function handleChange(event) {
     const { name, value } = event.target
 
     setForm((currentForm) => ({ ...currentForm, [name]: value }))
     setErrors((currentErrors) => ({ ...currentErrors, [name]: '' }))
+    setAuthError('')
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
 
-    const emailIsTaken = emailTaken(form.email)
     const nextErrors = {
-      email: validateEmail(form.email) || (emailIsTaken ? 'An account already uses this email.' : ''),
+      email: validateEmail(form.email),
       password: validatePassword(form.password),
       confirm: validateConfirm(form.password, form.confirm),
     }
 
     setErrors(nextErrors)
+    setAuthError('')
 
     if (Object.values(nextErrors).some(Boolean)) return
 
-    mockUsers.push({
-      email: form.email.trim(),
-      password: form.password,
-      role: 'user',
-    })
-    navigate('/login')
+    setSubmitting(true)
+    try {
+      await registerUser({ email: form.email, password: form.password })
+      navigate('/login')
+    } catch (error) {
+      setAuthError(error.message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -51,6 +57,12 @@ export default function Register() {
             <h1 id="register-title">Create your account</h1>
             <p>Get into line without standing in it.</p>
           </header>
+
+          {authError && (
+            <p className="auth-banner" role="alert">
+              {authError}
+            </p>
+          )}
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <div className="auth-field">
@@ -101,7 +113,9 @@ export default function Register() {
               {errors.confirm && <p id="register-confirm-error" className="auth-field-error">{errors.confirm}</p>}
             </div>
 
-            <button className="auth-submit" type="submit">Create account</button>
+            <button className="auth-submit" type="submit" disabled={submitting}>
+              {submitting ? 'Creating account…' : 'Create account'}
+            </button>
           </form>
 
           <p className="auth-switch">
