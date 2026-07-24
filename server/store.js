@@ -48,7 +48,8 @@ export const store = {
   services: initialServices(),
   queues: {}, // serviceId -> [{ userId, priority, joinedAt }]
   notifications: [], // { id, userId, message, createdAt, read }
-  history: [], // { id, userId, serviceId, serviceName, date, outcome }
+  history: [], // { id, userId, serviceId, serviceName, date, outcome, waitTime? }
+  // waitTime (minutes) is set for outcome: 'served' entries and used by GET /api/stats.
 };
 
 // Clears every collection; used by unit tests to isolate cases.
