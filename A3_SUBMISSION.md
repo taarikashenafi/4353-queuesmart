@@ -30,5 +30,5 @@ Run with `npm run test:coverage`.
 |---|---|---|
 | Armaan Amatya | Backend scaffolding (Express app, in-memory store, validation helpers, error middleware), Authentication module + unit tests, Login/Register API integration | |
 | Taarik Ashenafi | Service Management module + unit tests, shared frontend API client, ServiceManagement/AdminDashboard integration | |
-| Surafel Kafel | Queue Management module (join/leave/serve, priority + arrival ordering) + unit tests, JoinQueue/QueueStatus/QueueManagement integration | |
+| Surafel Kafel | Queue Management module (join/leave/serve, priority + arrival ordering) + unit tests | |
 | Uchenna Okoronkwo | Wait-time estimation, Notifications + History/Stats modules + unit tests, Dashboard/History integration, coverage report, submission document | |
