@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import JoinQueue from './pages/JoinQueue.jsx'
 import QueueStatus from './pages/QueueStatus.jsx'
 import History from './pages/History.jsx'
+import Profile from './pages/Profile.jsx'
 import NotFound from './pages/NotFound.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import ServiceManagement from './pages/admin/ServiceManagement.jsx'
@@ -32,6 +33,7 @@ function App() {
         <Route path="join" element={<JoinQueue />} />
         <Route path="queue-status" element={<QueueStatus />} />
         <Route path="history" element={<History />} />
+        <Route path="profile" element={<Profile />} />
         {/* Administrator routes: dashboard, service setup, and live queue controls. */}
         <Route path="admin" element={<AdminDashboard />} />
         <Route path="admin/services" element={<ServiceManagement />} />

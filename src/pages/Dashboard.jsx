@@ -86,6 +86,7 @@ export default function Dashboard() {
         <p className="muted">
           Review your active queue, discover open services, and catch up on the latest notifications.
         </p>
+        <Link to="/profile" className="btn btn-ghost">Edit profile</Link>
       </div>
 
       {error && <p className="error-text" role="alert">{error}</p>}

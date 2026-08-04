@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
-import { store, resetStore } from '../store.js';
+import db from '../db/index.js';
+import { sessions } from '../services/authService.js';
+import { resetAppDb } from './helpers/testDb.js';
 
 const VALID_USER = { email: 'student@uh.edu', password: 'password123', role: 'user' };
 
@@ -11,24 +13,33 @@ function register(overrides = {}) {
     .send({ ...VALID_USER, ...overrides });
 }
 
+function userCount() {
+  return db.prepare('SELECT COUNT(*) AS n FROM user_credentials').get().n;
+}
+
 describe('POST /api/auth/register', () => {
-  beforeEach(() => resetStore());
+  beforeEach(() => resetAppDb());
 
   it('registers a new user and returns the public profile', async () => {
     const res = await register();
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ id: expect.any(String), email: 'student@uh.edu', role: 'user' });
-    expect(store.users).toHaveLength(1);
+    expect(userCount()).toBe(1);
   });
 
-  it('never returns or stores the plain-text password', async () => {
+  it('stores the password as a bcrypt hash, never plain text', async () => {
     const res = await register();
 
     expect(res.body.password).toBeUndefined();
     expect(res.body.passwordHash).toBeUndefined();
-    expect(store.users[0].passwordHash).toBeDefined();
-    expect(store.users[0].passwordHash).not.toBe(VALID_USER.password);
+
+    const row = db
+      .prepare('SELECT password_hash FROM user_credentials WHERE email = ?')
+      .get('student@uh.edu');
+    expect(row.password_hash).toBeDefined();
+    expect(row.password_hash).not.toBe(VALID_USER.password);
+    expect(row.password_hash).toMatch(/^\$2[aby]\$/);
   });
 
   it('registers an admin when role is admin', async () => {
@@ -45,13 +56,23 @@ describe('POST /api/auth/register', () => {
     expect(res.body.email).toBe('student@uh.edu');
   });
 
+  it('creates a profile row when fullName is provided', async () => {
+    const res = await register({ fullName: 'Sam Student' });
+
+    expect(res.status).toBe(201);
+    const row = db
+      .prepare('SELECT full_name FROM user_profiles WHERE user_id = ?')
+      .get(res.body.id);
+    expect(row.full_name).toBe('Sam Student');
+  });
+
   it('rejects a duplicate email', async () => {
     await register();
     const res = await register();
 
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'Email is already registered' });
-    expect(store.users).toHaveLength(1);
+    expect(userCount()).toBe(1);
   });
 
   it('rejects a duplicate email regardless of case', async () => {
@@ -87,6 +108,13 @@ describe('POST /api/auth/register', () => {
     expect(res.body.error).toMatch(/role must be one of/);
   });
 
+  it('rejects a fullName over 100 characters', async () => {
+    const res = await register({ fullName: 'x'.repeat(101) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at most 100/);
+  });
+
   it.each([['email'], ['password'], ['role']])(
     'rejects a request missing %s',
     async (field) => {
@@ -107,7 +135,7 @@ describe('POST /api/auth/register', () => {
 
 describe('POST /api/auth/login', () => {
   beforeEach(async () => {
-    resetStore();
+    resetAppDb();
     await register();
   });
 
@@ -127,7 +155,7 @@ describe('POST /api/auth/login', () => {
   it('stores the session so the token maps to the user', async () => {
     const res = await login({ email: VALID_USER.email, password: VALID_USER.password });
 
-    expect(store.sessions[res.body.token]).toBe(res.body.user.id);
+    expect(sessions.get(res.body.token)).toBe(res.body.user.id);
   });
 
   it('treats the email as case-insensitive', async () => {
