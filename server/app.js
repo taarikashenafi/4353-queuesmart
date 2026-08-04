@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import authRouter from './routes/auth.js';
+import profileRouter from './routes/profile.js';
 import servicesRouter from './routes/services.js';
 import queuesRouter from './routes/queues.js';
 import notificationsRouter from './routes/notifications.js';
@@ -14,6 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
+app.use('/api/profile', profileRouter);
 app.use('/api/services', servicesRouter);
 app.use('/api/queues', queuesRouter);
 app.use('/api/notifications', notificationsRouter);
