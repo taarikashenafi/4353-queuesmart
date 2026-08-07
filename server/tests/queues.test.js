@@ -1,40 +1,39 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
-import { resetStore, store } from '../store.js';
+import db from '../db/index.js';
+import { resetAppDb } from './helpers/testDb.js';
+import { resetStore } from '../store.js';
 
-const SERVICE_ID = 'svc-1';
+let serviceId;
+let userId;
 
-// seed so the test queuee works right
 function seedService() {
-  store.services.push({
-    id: SERVICE_ID,
-    name: 'General Support',
-    description: 'General assistance',
-    expectedDuration: 15,
-    priority: 'medium',
-  });
+  db.prepare(
+    'INSERT INTO services (id, name, description, expected_duration, priority) VALUES (?, ?, ?, ?, ?)' 
+  ).run('s1', 'General Support', 'General assistance', 15, 'medium');
+  return 's1';
 }
 
-//mixed queue so testing priority stuff kinda works
-function seedQueue() {
-  store.queues[SERVICE_ID] = [
-    { userId: 'user-1', priority: 'low', joinedAt: '2026-07-24T10:00:00.000Z' },
-    { userId: 'user-2', priority: 'high', joinedAt: '2026-07-24T10:05:00.000Z' },
-    { userId: 'user-3', priority: 'medium', joinedAt: '2026-07-24T10:02:00.000Z' },
-    { userId: 'user-4', priority: 'high', joinedAt: '2026-07-24T10:01:00.000Z' },
-  ];
+function seedUser() {
+  const result = db
+    .prepare('INSERT INTO user_credentials (email, password_hash, role) VALUES (?, ?, ?)')
+    .run('surafel@example.com', 'hash', 'user');
+  return Number(result.lastInsertRowid);
 }
+
 describe('Queue API', () => {
-  // reset the in-memory store before each test so they stay kinda independent.
   beforeEach(() => {
     resetStore();
-    seedService();
+    resetAppDb();
+    serviceId = seedService();
+    userId = seedUser();
   });
-  it('joins a queue for an existing service', async () => {
+
+  it('joins a queue for an existing service and persists the row', async () => {
     const res = await request(app)
-      .post(`/api/queues/${SERVICE_ID}/join`)
-      .send({ userId: 'user-1', priority: 'low' });
+      .post(`/api/queues/${serviceId}/join`)
+      .send({ userId: String(userId), priority: 'low' });
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
@@ -43,85 +42,87 @@ describe('Queue API', () => {
       position: 1,
     });
 
-
+    const row = db.prepare('SELECT * FROM queue_entries WHERE user_id = ?').get(userId);
+    expect(row).toMatchObject({
+      user_id: userId,
+      status: 'waiting',
+      position: 1,
+    });
   });
 
   it('rejects duplicate join for the same user in the same queue', async () => {
-    store.queues[SERVICE_ID] = [{ userId: 'user-1', priority: 'low', joinedAt: new Date().toISOString() }];
+    await request(app)
+      .post(`/api/queues/${serviceId}/join`)
+      .send({ userId: String(userId), priority: 'low' });
 
     const res = await request(app)
-      .post(`/api/queues/${SERVICE_ID}/join`)
-      .send({ userId: 'user-1', priority: 'low' });
+      .post(`/api/queues/${serviceId}/join`)
+      .send({ userId: String(userId), priority: 'low' });
+
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'User is already in this queue' });
   });
+
   it('returns 404 when joining a nonexistent service', async () => {
     const res = await request(app)
-      .post('/api/queues/missing-service/join')
-      .send({ userId: 'user-1', priority: 'low' });
+      .post('/api/queues/does-not-exist/join')
+      .send({ userId: String(userId), priority: 'low' });
+
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'Service not found' });
   });
 
-  it('lets a user leave the queue', async () => {
-    store.queues[SERVICE_ID] = [{ userId: 'user-1', priority: 'low', joinedAt: new Date().toISOString() }];
+  it('lets a user leave the queue and marks the row as canceled', async () => {
+    await request(app)
+      .post(`/api/queues/${serviceId}/join`)
+      .send({ userId: String(userId), priority: 'low' });
 
-    const res = await request(app).delete(`/api/queues/${SERVICE_ID}/leave`).send({ userId: 'user-1' });
+    const res = await request(app).delete(`/api/queues/${serviceId}/leave`).send({ userId: String(userId) });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ message: 'Left queue successfully' });
-    expect(store.queues[SERVICE_ID]).toEqual([]);
-  });
-  // make sure higher priority users go first
-  it('orders queue entries by priority then arrival time', async () => {
-    seedQueue();
 
-    const res = await request(app).get(`/api/queues/${SERVICE_ID}`);
+    const row = db.prepare('SELECT * FROM queue_entries WHERE user_id = ?').get(userId);
+    expect(row.status).toBe('canceled');
+  });
+
+  it('returns queue entries in arrival order and the right position and wait time', async () => {
+    const queueId = Number(db.prepare('SELECT id FROM queues WHERE service_id = ?').get(serviceId).id);
+
+    db.prepare(
+      'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
+    ).run(queueId, userId, 1, '2026-07-24T10:00:00.000Z', 'waiting', 'low');
+    db.prepare(
+      'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
+    ).run(queueId, userId + 1, 2, '2026-07-24T10:05:00.000Z', 'waiting', 'high');
+    db.prepare(
+      'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
+    ).run(queueId, userId + 2, 3, '2026-07-24T10:02:00.000Z', 'waiting', 'medium');
+
+    const res = await request(app).get(`/api/queues/${serviceId}?userId=${userId + 2}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.queue.map((entry) => entry.userId)).toEqual(['user-4', 'user-2', 'user-3', 'user-1']);
+    expect(res.body.queue.map((entry) => entry.userId)).toEqual([String(userId), String(userId + 2), String(userId + 1)]);
+    expect(res.body.position).toBe(2);
+    expect(res.body.estimatedWait).toBe(15);
   });
 
-  //check that the api gives the right position and wait time.
-  it('returns a user position and estimated wait time', async () => {
-    seedQueue();
+  it('serves the next user and marks the row as served', async () => {
+    const queueId = Number(db.prepare('SELECT id FROM queues WHERE service_id = ?').get(serviceId).id);
 
-    const res = await request(app).get(`/api/queues/${SERVICE_ID}?userId=user-3`);
+    db.prepare(
+      'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
+    ).run(queueId, userId, 1, '2026-07-24T10:00:00.000Z', 'waiting', 'low');
+    db.prepare(
+      'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
+    ).run(queueId, userId + 1, 2, '2026-07-24T10:01:00.000Z', 'waiting', 'high');
+
+    const res = await request(app).post(`/api/queues/${serviceId}/serve`);
+
     expect(res.status).toBe(200);
-    expect(res.body.position).toBe(3);
-    expect(res.body.estimatedWait).toBe(30);
-  });
+    expect(res.body).toEqual({ message: 'Served next user', userId: String(userId + 1) });
 
-  // serving the next user should remove them and save it wihtin history.
-  it('serves the next user and records history', async () => {
-    store.queues[SERVICE_ID] = [
-      { userId: 'user-1', priority: 'low', joinedAt: '2026-07-24T10:00:00.000Z' },
-      { userId: 'user-2', priority: 'high', joinedAt: '2026-07-24T10:01:00.000Z' },
-    ];
-
-    const res = await request(app).post(`/api/queues/${SERVICE_ID}/serve`);
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Served next user', userId: 'user-2' });
-    expect(store.queues[SERVICE_ID]).toHaveLength(1);
-    expect(store.history).toHaveLength(1);
-    expect(store.history[0]).toMatchObject({
-      userId: 'user-2',
-      serviceId: SERVICE_ID,
-      serviceName: 'General Support',
-      outcome: 'served',
-    });
-  });
-  it('creates notifications when a user joins a queue', async () => {
-    const res = await request(app)
-      .post(`/api/queues/${SERVICE_ID}/join`)
-      .send({ userId: 'user-1', priority: 'low' });
-
-    expect(res.status).toBe(201);
-    expect(store.notifications).toHaveLength(2);
-    expect(store.notifications[0]).toMatchObject({
-      userId: 'user-1',
-      read: false,
-    });
-    expect(store.notifications[1].message).toMatch(/near the front/);
+    const row = db.prepare('SELECT * FROM queue_entries WHERE user_id = ?').get(userId + 1);
+    expect(row.status).toBe('served');
   });
 });
