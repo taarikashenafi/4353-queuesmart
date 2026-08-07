@@ -29,6 +29,16 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 -- Queue entries (Surafel) — add `queue_entries` here
 -- ============================================================
 
+CREATE TABLE IF NOT EXISTS queue_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  queue_id INTEGER NOT NULL REFERENCES queues(id),
+  user_id INTEGER NOT NULL REFERENCES user_credentials(id),
+  position INTEGER NOT NULL,
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  status TEXT NOT NULL CHECK (status IN ('waiting', 'served', 'canceled')) DEFAULT 'waiting',
+  priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'low'
+);
+
 -- ============================================================
 -- Notifications (Uchenna) — add `notifications` here
 -- ============================================================
