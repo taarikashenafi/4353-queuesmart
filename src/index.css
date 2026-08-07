@@ -373,6 +373,7 @@ h3 { font-size: 1.15rem; }
 .service-list-item p { color: var(--muted); font-size: .9rem; }
 .service-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .service-duration { color: var(--faint); font-size: .78rem; font-weight: 600; }
+.service-actions { justify-items: end; align-content: start; }
 .queue-toolbar { display: grid; grid-template-columns: minmax(250px, 1fr) auto auto; align-items: end; gap: 24px; }
 .queue-select-field { margin: 0; }
 .queue-summary { display: flex; align-items: center; gap: 22px; white-space: nowrap; }
