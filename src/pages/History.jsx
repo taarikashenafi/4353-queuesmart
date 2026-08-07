@@ -57,7 +57,7 @@ export default function History() {
                     </p>
                   </div>
                   <span className={`badge badge-${entry.outcome === 'served' ? 'served' : 'left'}`}>
-                    {entry.outcome === 'served' ? 'Served' : 'Left'}
+                    {entry.outcome === 'served' ? 'Served' : 'Canceled'}
                   </span>
                 </div>
                 <div className="row" style={{ justifyContent: 'space-between', marginTop: '10px' }}>
