@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { store } from '../store.js';
+import db from '../db/index.js';
 
 // Notifications module (owner: Uchenna)
 // GET /api/notifications/:userId, POST /api/notifications/:userId/read
@@ -7,9 +7,15 @@ import { store } from '../store.js';
 const router = Router();
 
 function notificationsFor(userId) {
-  return store.notifications
-    .filter((notification) => notification.userId === userId)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return db
+    .prepare(`
+      SELECT id, user_id AS userId, message, created_at AS createdAt, status
+      FROM notifications
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+    `)
+    .all(userId)
+    .map((row) => ({ ...row, id: String(row.id), userId: String(row.userId) }));
 }
 
 router.get('/:userId', (req, res) => {
@@ -17,12 +23,7 @@ router.get('/:userId', (req, res) => {
 });
 
 router.post('/:userId/read', (req, res) => {
-  store.notifications
-    .filter((notification) => notification.userId === req.params.userId)
-    .forEach((notification) => {
-      notification.read = true;
-    });
-
+  db.prepare("UPDATE notifications SET status = 'viewed' WHERE user_id = ?").run(req.params.userId);
   res.json(notificationsFor(req.params.userId));
 });
 

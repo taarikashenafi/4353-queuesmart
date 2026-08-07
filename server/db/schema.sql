@@ -63,3 +63,11 @@ CREATE TABLE IF NOT EXISTS queue_entries (
 -- ============================================================
 -- Notifications (Uchenna) — add `notifications` here
 -- ============================================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES user_credentials(id),
+  message    TEXT    NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  status     TEXT    NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'viewed'))
+);

@@ -1,20 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
-import { generateId, resetStore, store } from '../store.js';
+import db from '../db/index.js';
+import { resetAppDb } from './helpers/testDb.js';
 import { estimateWait } from '../waitTime.js';
 
-function seedNotification(overrides = {}) {
-  const notification = {
-    id: generateId(),
-    userId: 'u1',
-    message: 'You are next in line',
-    createdAt: new Date().toISOString(),
-    read: false,
-    ...overrides,
-  };
-  store.notifications.push(notification);
-  return notification;
+function createUser(email = 'student@uh.edu') {
+  const result = db
+    .prepare('INSERT INTO user_credentials (email, password_hash, role) VALUES (?, ?, ?)')
+    .run(email, 'hash', 'user');
+  return Number(result.lastInsertRowid);
+}
+
+function seedNotification(userId, { message = 'You are next in line', status = 'sent', createdAt } = {}) {
+  if (createdAt) {
+    db.prepare(
+      'INSERT INTO notifications (user_id, message, status, created_at) VALUES (?, ?, ?, ?)',
+    ).run(userId, message, status, createdAt);
+  } else {
+    db.prepare('INSERT INTO notifications (user_id, message, status) VALUES (?, ?, ?)').run(
+      userId,
+      message,
+      status,
+    );
+  }
 }
 
 describe('estimateWait', () => {
@@ -43,34 +52,49 @@ describe('estimateWait', () => {
 });
 
 describe('notifications API', () => {
-  beforeEach(() => resetStore());
+  let userId;
+
+  beforeEach(() => {
+    resetAppDb();
+    userId = createUser();
+  });
 
   it('returns an empty array for a user with no notifications', async () => {
-    const res = await request(app).get('/api/notifications/u1');
+    const res = await request(app).get(`/api/notifications/${userId}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 
   it("returns a user's notifications newest-first", async () => {
-    seedNotification({ id: '1', message: 'first', createdAt: '2026-07-23T10:00:00.000Z' });
-    seedNotification({ id: '2', message: 'second', createdAt: '2026-07-23T11:00:00.000Z' });
-    seedNotification({ id: '3', userId: 'other', message: 'not mine', createdAt: '2026-07-23T12:00:00.000Z' });
+    seedNotification(userId, { message: 'first', createdAt: '2026-08-01 10:00:00' });
+    seedNotification(userId, { message: 'second', createdAt: '2026-08-01 11:00:00' });
+    const otherUserId = createUser('other@uh.edu');
+    seedNotification(otherUserId, { message: 'not mine' });
 
-    const res = await request(app).get('/api/notifications/u1');
+    const res = await request(app).get(`/api/notifications/${userId}`);
 
     expect(res.status).toBe(200);
     expect(res.body.map((n) => n.message)).toEqual(['second', 'first']);
   });
 
-  it("marks a user's notifications as read without affecting other users", async () => {
-    seedNotification({ id: '1' });
-    seedNotification({ id: '2', userId: 'other' });
+  it('marks a user\'s notifications as viewed without affecting other users', async () => {
+    seedNotification(userId);
+    const otherUserId = createUser('other@uh.edu');
+    seedNotification(otherUserId);
 
-    const res = await request(app).post('/api/notifications/u1/read');
+    const res = await request(app).post(`/api/notifications/${userId}/read`);
 
     expect(res.status).toBe(200);
-    expect(res.body.every((n) => n.read)).toBe(true);
-    expect(store.notifications.find((n) => n.id === '2').read).toBe(false);
+    expect(res.body.every((n) => n.status === 'viewed')).toBe(true);
+    expect(
+      db.prepare('SELECT status FROM notifications WHERE user_id = ?').get(otherUserId).status,
+    ).toBe('sent');
+  });
+
+  it('rejects inserting a notification for a nonexistent user via the FK constraint', () => {
+    expect(() =>
+      db.prepare('INSERT INTO notifications (user_id, message) VALUES (?, ?)').run(999999, 'test'),
+    ).toThrow(/FOREIGN KEY constraint failed/);
   });
 });
