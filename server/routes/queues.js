@@ -5,6 +5,10 @@ import {
   getQueue,
   serveNext,
 } from '../services/queueService.js';
+import {
+  getQueueStatus,
+  updateQueueStatus,
+} from '../services/serviceService.js';
 
 // queue stuff for join, leave, view, and serve
 //the main queue endpoints for the app
@@ -29,6 +33,14 @@ router.get('/:serviceId', (req, res) => {
 router.post('/:serviceId/serve', (req, res) => {
   const result = serveNext(req.params.serviceId);
   res.json(result);
+});
+
+router.get('/:serviceId/status', (req, res) => {
+  res.json(getQueueStatus(req.params.serviceId));
+});
+
+router.patch('/:serviceId/status', (req, res) => {
+  res.json(updateQueueStatus(req.params.serviceId, req.body));
 });
 
 export default router;

@@ -9,16 +9,18 @@ let serviceId;
 let userId;
 
 function seedService() {
-  db.prepare(
-    'INSERT INTO services (id, name, description, expected_duration, priority) VALUES (?, ?, ?, ?, ?)' 
-  ).run('s1', 'General Support', 'General assistance', 15, 'medium');
-  return 's1';
+  const result = db.prepare(
+    'INSERT INTO services (name, description, expected_duration, priority) VALUES (?, ?, ?, ?)'
+  ).run('General Support', 'General assistance', 15, 'medium');
+  const id = Number(result.lastInsertRowid);
+  db.prepare("INSERT INTO queues (service_id, status) VALUES (?, 'open')").run(id);
+  return id;
 }
 
-function seedUser() {
+function seedUser(email = 'surafel@example.com') {
   const result = db
     .prepare('INSERT INTO user_credentials (email, password_hash, role) VALUES (?, ?, ?)')
-    .run('surafel@example.com', 'hash', 'user');
+    .run(email, 'hash', 'user');
   return Number(result.lastInsertRowid);
 }
 
@@ -86,43 +88,50 @@ describe('Queue API', () => {
     expect(row.status).toBe('canceled');
   });
 
-  it('returns queue entries in arrival order and the right position and wait time', async () => {
+  it('returns queue entries by priority then arrival with position and wait time', async () => {
     const queueId = Number(db.prepare('SELECT id FROM queues WHERE service_id = ?').get(serviceId).id);
+    const highPriorityUserId = seedUser('high@example.com');
+    const mediumPriorityUserId = seedUser('medium@example.com');
 
     db.prepare(
       'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
     ).run(queueId, userId, 1, '2026-07-24T10:00:00.000Z', 'waiting', 'low');
     db.prepare(
       'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
-    ).run(queueId, userId + 1, 2, '2026-07-24T10:05:00.000Z', 'waiting', 'high');
+    ).run(queueId, highPriorityUserId, 2, '2026-07-24T10:05:00.000Z', 'waiting', 'high');
     db.prepare(
       'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
-    ).run(queueId, userId + 2, 3, '2026-07-24T10:02:00.000Z', 'waiting', 'medium');
+    ).run(queueId, mediumPriorityUserId, 3, '2026-07-24T10:02:00.000Z', 'waiting', 'medium');
 
-    const res = await request(app).get(`/api/queues/${serviceId}?userId=${userId + 2}`);
+    const res = await request(app).get(`/api/queues/${serviceId}?userId=${mediumPriorityUserId}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.queue.map((entry) => entry.userId)).toEqual([String(userId), String(userId + 2), String(userId + 1)]);
+    expect(res.body.queue.map((entry) => entry.userId)).toEqual([
+      String(highPriorityUserId),
+      String(mediumPriorityUserId),
+      String(userId),
+    ]);
     expect(res.body.position).toBe(2);
     expect(res.body.estimatedWait).toBe(15);
   });
 
   it('serves the next user and marks the row as served', async () => {
     const queueId = Number(db.prepare('SELECT id FROM queues WHERE service_id = ?').get(serviceId).id);
+    const highPriorityUserId = seedUser('high@example.com');
 
     db.prepare(
       'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
     ).run(queueId, userId, 1, '2026-07-24T10:00:00.000Z', 'waiting', 'low');
     db.prepare(
       'INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority) VALUES (?, ?, ?, ?, ?, ?)' 
-    ).run(queueId, userId + 1, 2, '2026-07-24T10:01:00.000Z', 'waiting', 'high');
+    ).run(queueId, highPriorityUserId, 2, '2026-07-24T10:01:00.000Z', 'waiting', 'high');
 
     const res = await request(app).post(`/api/queues/${serviceId}/serve`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: 'Served next user', userId: String(userId + 1) });
+    expect(res.body).toEqual({ message: 'Served next user', userId: String(highPriorityUserId) });
 
-    const row = db.prepare('SELECT * FROM queue_entries WHERE user_id = ?').get(userId + 1);
+    const row = db.prepare('SELECT * FROM queue_entries WHERE user_id = ?').get(highPriorityUserId);
     expect(row.status).toBe('served');
   });
 });
