@@ -1,16 +1,57 @@
-// Queue Status page for Assignment 2 front-end work.
-// Owner: Surafel Kafel — displays the user's current queue position and status.
-import { getUserQueueEntries, currentUser, getServiceById, getEstimatedWaitMin } from '../data/mockData.js'
+import { useEffect, useState } from 'react'
+import { apiGet } from '../api/client.js'
+
+function getCurrentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('qs_user'))
+  } catch {
+    return null
+  }
+}
 
 export default function QueueStatus() {
-  const userQueues = getUserQueueEntries(currentUser.id)
-  const activeQueue = userQueues[0]
-  const service = activeQueue ? getServiceById(activeQueue.serviceId) : null
-  const estimatedWait = activeQueue
-    ? getEstimatedWaitMin(activeQueue.serviceId, activeQueue.position)
-    : 0
+  const user = getCurrentUser()
+  const [activeQueue, setActiveQueue] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Render the current queue status for the mock logged-in user.
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function load() {
+      try {
+        const services = await apiGet('/services')
+        const checks = await Promise.allSettled(services.map(async (service) => {
+          const queue = await apiGet(`/queues/${service.id}?userId=${user.id}`)
+          return { service, queue }
+        }))
+
+        if (cancelled) return
+
+        const found = checks
+          .filter((result) => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .find(({ queue }) => typeof queue.position === 'number')
+
+        setActiveQueue(found || null)
+      } catch (err) {
+        if (!cancelled) setError(err.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
+
   return (
     <section className="stack">
       <div className="section-head">
@@ -21,17 +62,23 @@ export default function QueueStatus() {
         </p>
       </div>
 
-      {activeQueue ? (
+      {error && <p className="error-text" role="alert">{error}</p>}
+
+      {loading ? (
+        <article className="card">
+          <p className="muted">Loading…</p>
+        </article>
+      ) : activeQueue ? (
         <article className="card">
           <div className="stack">
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <div>
                 <p className="label">Service</p>
-                <strong>{service?.name}</strong>
+                <strong>{activeQueue.service.name}</strong>
               </div>
               <div>
                 <p className="label">Joined</p>
-                <strong>{new Date(activeQueue.joinedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
+                <strong>{new Date(activeQueue.queue.queue[activeQueue.queue.position - 1]?.joinedAt || Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</strong>
               </div>
             </div>
 
@@ -40,26 +87,24 @@ export default function QueueStatus() {
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <div>
                     <p className="label">Your position</p>
-                    <strong>{activeQueue.position}</strong>
+                    <strong>{activeQueue.queue.position}</strong>
                   </div>
                   <div>
                     <p className="label">Est. wait</p>
-                    <strong>{estimatedWait} min</strong>
+                    <strong>{activeQueue.queue.estimatedWait ?? 0} min</strong>
                   </div>
                 </div>
               </div>
               <div className="card" style={{ padding: '18px' }}>
                 <p className="label">Status update</p>
-                <p>{activeQueue.status === 'waiting' ? 'Waiting' : activeQueue.status === 'almost_ready' ? 'Almost ready' : 'Served'}</p>
+                <p>{activeQueue.queue.position === 1 ? 'Almost ready' : 'Waiting'}</p>
               </div>
               <div className="card" style={{ padding: '18px' }}>
                 <p className="label">What happens next</p>
                 <p className="muted">
-                  {activeQueue.status === 'waiting'
+                  {activeQueue.queue.position > 1
                     ? 'Keep an eye on the queue; you will be notified when your turn is near.'
-                    : activeQueue.status === 'almost_ready'
-                    ? 'Head to the service desk now so you can be served promptly.'
-                    : 'Your visit is done — feel free to join another line.'}
+                    : 'Head to the service desk now so you can be served promptly.'}
                 </p>
               </div>
             </div>

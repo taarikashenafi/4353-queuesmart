@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { services } from '../data/mockData.js'
+import { useEffect, useState } from 'react'
+import { apiGet } from '../api/client.js'
 
 // Landing page — the app's front door and a map of where each area lives.
 // The chip links point at teammate screens; they route once those are built.
@@ -26,6 +27,29 @@ const areas = [
 ]
 
 export default function Home() {
+  const [services, setServices] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    apiGet('/services')
+      .then(async (serviceList) => {
+        const withStatus = await Promise.all(serviceList.map(async (service) => {
+          const queue = await apiGet(`/queues/${service.id}/status`)
+          return { ...service, isOpen: queue.status === 'open' }
+        }))
+
+        if (!cancelled) setServices(withStatus)
+      })
+      .catch(() => {
+        if (!cancelled) setServices([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const openCount = services.filter((s) => s.isOpen).length
 
   return (
