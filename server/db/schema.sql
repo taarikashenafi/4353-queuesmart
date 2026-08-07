@@ -22,8 +22,29 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 );
 
 -- ============================================================
--- Services & queues (Taarik) — add `services` and `queues` here
+-- Services & queues (Taarik)
 -- ============================================================
+
+CREATE TABLE IF NOT EXISTS services (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  name              TEXT    NOT NULL
+                    CHECK (length(trim(name)) BETWEEN 1 AND 100),
+  description       TEXT    NOT NULL
+                    CHECK (length(trim(description)) BETWEEN 1 AND 500),
+  expected_duration INTEGER NOT NULL
+                    CHECK (typeof(expected_duration) = 'integer'
+                      AND expected_duration BETWEEN 1 AND 480),
+  priority          TEXT    NOT NULL
+                    CHECK (priority IN ('low', 'medium', 'high'))
+);
+
+CREATE TABLE IF NOT EXISTS queues (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  service_id INTEGER NOT NULL UNIQUE REFERENCES services(id),
+  status     TEXT    NOT NULL DEFAULT 'open'
+             CHECK (status IN ('open', 'closed')),
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 
 -- ============================================================
 -- Queue entries (Surafel) — add `queue_entries` here
