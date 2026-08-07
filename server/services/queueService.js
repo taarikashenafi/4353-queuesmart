@@ -3,31 +3,6 @@ import { ApiError, requireFields, requireOneOf } from '../validators.js';
 
 function ensureSchema() {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS services (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      expected_duration INTEGER NOT NULL,
-      priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high'))
-    );
-
-    CREATE TABLE IF NOT EXISTS queues (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_id TEXT NOT NULL REFERENCES services(id),
-      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS queue_entries (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      queue_id INTEGER NOT NULL REFERENCES queues(id),
-      user_id INTEGER NOT NULL REFERENCES user_credentials(id),
-      position INTEGER NOT NULL,
-      joined_at TEXT NOT NULL DEFAULT (datetime('now')),
-      status TEXT NOT NULL CHECK (status IN ('waiting', 'served', 'canceled')) DEFAULT 'waiting',
-      priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'low'
-    );
-
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES user_credentials(id),
@@ -90,7 +65,10 @@ function syncPositions(queueId) {
       SELECT id
       FROM queue_entries
       WHERE queue_id = ? AND status = 'waiting'
-      ORDER BY joined_at ASC, id ASC
+      ORDER BY
+        CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+        joined_at ASC,
+        id ASC
     `)
     .all(queueId);
 
@@ -107,7 +85,10 @@ function getQueueEntries(serviceId) {
       FROM queue_entries qe
       JOIN queues q ON qe.queue_id = q.id
       WHERE q.service_id = ? AND qe.status = 'waiting'
-      ORDER BY qe.joined_at ASC, qe.id ASC
+      ORDER BY
+        CASE qe.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+        qe.joined_at ASC,
+        qe.id ASC
     `)
     .all(normalizedServiceId);
 
@@ -125,9 +106,12 @@ export function joinQueue(serviceId, input) {
   const { userId, priority } = input;
   requireOneOf(priority, 'priority', ['high', 'medium', 'low']);
 
-  const service = getService(serviceId);
+  getService(serviceId);
   const normalizedUserId = normalizeUserId(userId);
   const queue = ensureQueue(serviceId);
+  if (queue.status === 'closed') {
+    throw new ApiError(400, 'Queue is closed');
+  }
 
   return db.transaction(() => {
     const existing = db
@@ -181,7 +165,11 @@ export function leaveQueue(serviceId, input) {
 export function getQueue(serviceId, userId) {
   const service = getService(serviceId);
   const orderedQueue = getQueueEntries(serviceId);
-  const result = { serviceId: service.id, serviceName: service.name, queue: orderedQueue };
+  const result = {
+    serviceId: String(service.id),
+    serviceName: service.name,
+    queue: orderedQueue,
+  };
 
   if (userId !== undefined && userId !== null && userId !== '') {
     const normalizedUserId = normalizeUserId(userId);
@@ -208,7 +196,10 @@ export function serveNext(serviceId) {
         FROM queue_entries qe
         JOIN queues q ON qe.queue_id = q.id
         WHERE q.service_id = ? AND qe.status = 'waiting'
-        ORDER BY qe.joined_at ASC, qe.id ASC
+        ORDER BY
+          CASE qe.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+          qe.joined_at ASC,
+          qe.id ASC
         LIMIT 1
       `)
       .get(service.id);

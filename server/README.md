@@ -1,7 +1,8 @@
-# QueueSmart Backend (A3)
+# QueueSmart Backend
 
-Express backend with in-memory storage (no database, per A3 requirements).
-Run with `npm run server` (port 3000). Tests: `npm run test`.
+Express backend with persistent SQLite storage. Run with `npm run db:seed`
+once to add the sample services and administrator account, then start the API
+with `npm run server` (port 3000). Tests: `npm run test`.
 
 ## Architecture
 
@@ -16,10 +17,9 @@ routes/        thin HTTP adapters: parse the request, call a service,
    │           send the JSON response. No business rules here.
    ▼
 services/      business logic per module: validation, rules, and all
-   │           reads/writes against the store.
+   │           reads/writes against SQLite.
    ▼
-store.js       single in-memory data store (users, services, queues,
-               notifications, history) + resetStore() for tests.
+db/            SQLite connection, relational schema, and seed data.
 ```
 
 Cross-cutting pieces:
@@ -34,11 +34,11 @@ Cross-cutting pieces:
 ## Adding your module
 
 1. Put business logic in `services/<module>Service.js` — plain functions that
-   take input, validate with the helpers in `validators.js`, touch the store,
-   and return plain objects.
+   take input, validate with the helpers in `validators.js`, access the
+   database, and return plain objects.
 2. Keep your router in `routes/<module>.js` to one or two lines per endpoint:
    call the service, send the response.
-3. Write tests in `tests/<module>.test.js`. Call `resetStore()` in a
+3. Write tests in `tests/<module>.test.js`. Call `resetAppDb()` in a
    `beforeEach` so tests stay independent. Test through the HTTP layer with
    Supertest (validates status codes and error shapes) and hit every
    validation branch.

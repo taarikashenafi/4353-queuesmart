@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import AdminPageHeader from '../../components/AdminPageHeader.jsx'
-import { apiGet, apiPost, apiPut } from '../../api/client.js'
+import { apiGet, apiPatch, apiPost, apiPut } from '../../api/client.js'
 
 const PRIORITY_LEVELS = ['low', 'medium', 'high']
 const emptyForm = { name: '', description: '', expectedDuration: '', priority: 'medium' }
@@ -14,11 +14,16 @@ export default function ServiceManagement() {
   const [apiError, setApiError] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [updatingQueueId, setUpdatingQueueId] = useState(null)
 
   useEffect(() => {
     let active = true
 
     apiGet('/services')
+      .then((data) => Promise.all(data.map(async (service) => {
+        const queue = await apiGet(`/queues/${service.id}/status`)
+        return { ...service, queueStatus: queue.status }
+      })))
       .then((data) => {
         if (active) setServices(data)
       })
@@ -66,11 +71,11 @@ export default function ServiceManagement() {
     try {
       if (editingId) {
         const updated = await apiPut(`/services/${editingId}`, serviceInput)
-        setServices((current) => current.map((service) => service.id === editingId ? updated : service))
+        setServices((current) => current.map((service) => service.id === editingId ? { ...updated, queueStatus: service.queueStatus } : service))
         setNotice(`${updated.name} updated.`)
       } else {
         const created = await apiPost('/services', serviceInput)
-        setServices((current) => [...current, created])
+        setServices((current) => [...current, { ...created, queueStatus: 'open' }])
         setNotice(`${created.name} created.`)
       }
       cancelEdit()
@@ -100,6 +105,25 @@ export default function ServiceManagement() {
     setForm((current) => ({ ...current, [name]: value }))
     setErrors((current) => ({ ...current, [name]: '' }))
     setApiError('')
+  }
+
+  async function toggleQueue(service) {
+    const status = service.queueStatus === 'open' ? 'closed' : 'open'
+    setApiError('')
+    setNotice('')
+    setUpdatingQueueId(service.id)
+
+    try {
+      await apiPatch(`/queues/${service.id}/status`, { status })
+      setServices((current) => current.map((item) => (
+        item.id === service.id ? { ...item, queueStatus: status } : item
+      )))
+      setNotice(`${service.name} queue ${status}.`)
+    } catch (error) {
+      setApiError(error.message)
+    } finally {
+      setUpdatingQueueId(null)
+    }
   }
 
   return (
@@ -145,7 +169,11 @@ export default function ServiceManagement() {
           {!loading && services.map((service) => (
             <article className="card service-list-item" key={service.id}>
               <div><div className="service-title-row"><h3>{service.name}</h3><span className={`badge badge-${service.priority === 'medium' ? 'med' : service.priority}`}>{service.priority}</span></div><p>{service.description}</p><span className="service-duration">Average visit: {service.expectedDuration} minutes</span></div>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => startEdit(service)}>Edit</button>
+              <div className="service-actions">
+                <span className={`badge ${service.queueStatus === 'open' ? 'badge-served' : 'badge-left'}`}>{service.queueStatus}</span>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => toggleQueue(service)} disabled={updatingQueueId === service.id}>{updatingQueueId === service.id ? 'Updating…' : service.queueStatus === 'open' ? 'Close queue' : 'Open queue'}</button>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => startEdit(service)}>Edit</button>
+              </div>
             </article>
           ))}
         </section>

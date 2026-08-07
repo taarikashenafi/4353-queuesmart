@@ -41,6 +41,13 @@ export function apiPut(path, body) {
   })
 }
 
+export function apiPatch(path, body) {
+  return request(path, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
 export function apiDelete(path, body) {
   return request(path, {
     method: 'DELETE',
