@@ -3,7 +3,6 @@ import request from 'supertest';
 import app from '../app.js';
 import db from '../db/index.js';
 import { resetAppDb } from './helpers/testDb.js';
-import { resetStore } from '../store.js';
 
 let serviceId;
 let userId;
@@ -26,7 +25,6 @@ function seedUser(email = 'surafel@example.com') {
 
 describe('Queue API', () => {
   beforeEach(() => {
-    resetStore();
     resetAppDb();
     serviceId = seedService();
     userId = seedUser();
