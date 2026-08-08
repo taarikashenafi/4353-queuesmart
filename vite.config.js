@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   test: {
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: ['server/**/*.js'],
