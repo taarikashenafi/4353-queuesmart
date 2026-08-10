@@ -1,5 +1,34 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 
+// Login stores the bearer token issued by the backend. Every request carries
+// it so the server can verify who is calling and whether they are an admin.
+function authHeaders() {
+  let token
+  try {
+    token = localStorage.getItem('qs_token')
+  } catch {
+    return {}
+  }
+
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+// Session tokens live in server memory, so a backend restart invalidates the
+// token still sitting in localStorage. Clearing it and bouncing to the login
+// page turns that into a recoverable state instead of endless 401s.
+function handleExpiredSession() {
+  try {
+    localStorage.removeItem('qs_user')
+    localStorage.removeItem('qs_token')
+  } catch {
+    // Storage unavailable — the redirect below is still the right move.
+  }
+
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login')
+  }
+}
+
 async function request(path, options = {}) {
   let response
 
@@ -8,6 +37,7 @@ async function request(path, options = {}) {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
         ...options.headers,
       },
     })
@@ -17,6 +47,10 @@ async function request(path, options = {}) {
 
   const data = await response.json().catch(() => null)
   if (!response.ok) {
+    if (response.status === 401) {
+      handleExpiredSession()
+      throw new Error(data?.error || 'Your session expired. Please sign in again.')
+    }
     throw new Error(data?.error || `Request failed with status ${response.status}.`)
   }
 

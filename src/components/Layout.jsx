@@ -13,7 +13,7 @@ export default function Layout() {
       <footer className="footer">
         <div className="footer-inner">
           <span>QueueSmart · COSC 4353 · Group 16</span>
-          <span>Shell: routing · nav · shared mock data</span>
+          <span>Shell: routing · nav · live backend API</span>
         </div>
       </footer>
     </>

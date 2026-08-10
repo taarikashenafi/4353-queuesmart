@@ -43,7 +43,12 @@ export default function QueueManagement() {
   const service = services.find((item) => item.id === serviceId)
   const queue = queues[serviceId]?.queue || []
   const clearTime = queue.length * (service?.expectedDuration || 0)
-  const serviceOptions = useMemo(() => services.map((item) => ({ ...item, count: queues[item.id]?.length || 0 })), [queues])
+  // Each entry in `queues` is the full API payload ({ queue, status, ... }),
+  // so the waiting count lives on `.queue.length`, not on the object itself.
+  const serviceOptions = useMemo(
+    () => services.map((item) => ({ ...item, count: queues[item.id]?.queue?.length || 0 })),
+    [services, queues],
+  )
 
   async function refreshServiceQueue(currentServiceId) {
     const [queue, status] = await Promise.all([

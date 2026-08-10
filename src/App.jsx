@@ -10,6 +10,7 @@ import NotFound from './pages/NotFound.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import ServiceManagement from './pages/admin/ServiceManagement.jsx'
 import QueueManagement from './pages/admin/QueueManagement.jsx'
+import RequireAdmin from './components/RequireAdmin.jsx'
 import { authRoutes } from './authRoutes.jsx'
 
 /*
@@ -34,10 +35,12 @@ function App() {
         <Route path="queue-status" element={<QueueStatus />} />
         <Route path="history" element={<History />} />
         <Route path="profile" element={<Profile />} />
-        {/* Administrator routes: dashboard, service setup, and live queue controls. */}
-        <Route path="admin" element={<AdminDashboard />} />
-        <Route path="admin/services" element={<ServiceManagement />} />
-        <Route path="admin/queues" element={<QueueManagement />} />
+        {/* Administrator routes: dashboard, service setup, and live queue controls.
+            RequireAdmin keeps non-admins out of the UI; the backend enforces the
+            role again on every write. */}
+        <Route path="admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+        <Route path="admin/services" element={<RequireAdmin><ServiceManagement /></RequireAdmin>} />
+        <Route path="admin/queues" element={<RequireAdmin><QueueManagement /></RequireAdmin>} />
         {/* Other teammate routes go here. */}
         <Route path="home" element={<Home />} />
         {/* Teammate routes go here. */}

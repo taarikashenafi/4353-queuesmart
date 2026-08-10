@@ -1,5 +1,5 @@
 // Join Queue page.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiDelete, apiGet, apiPost } from '../api/client.js'
 
 function getCurrentUser() {
@@ -11,9 +11,10 @@ function getCurrentUser() {
 }
 
 export default function JoinQueue() {
-  const user = getCurrentUser()
+  const user = useMemo(() => getCurrentUser(), [])
   const [services, setServices] = useState([])
   const [queueStatuses, setQueueStatuses] = useState({})
+  const [queueLengths, setQueueLengths] = useState({})
   const [selectedService, setSelectedService] = useState('')
   const [activeQueue, setActiveQueue] = useState(null)
   const [joining, setJoining] = useState(false)
@@ -22,10 +23,43 @@ export default function JoinQueue() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
+  // One roster fetch per service gives us everything the page shows: how many
+  // people are waiting, whether the queue is open, and — if the current user
+  // is in the list — their own position.
+  const loadQueues = useCallback(async () => {
+    const serviceList = await apiGet('/services')
+    const rows = await Promise.all(serviceList.map(async (service) => {
+      const [queue, status] = await Promise.all([
+        apiGet(`/queues/${service.id}`),
+        apiGet(`/queues/${service.id}/status`),
+      ])
+      return { service, entries: queue.queue, status: status.status }
+    }))
+
+    const mine = rows
+      .map((row) => {
+        const index = row.entries.findIndex((entry) => entry.userId === String(user.id))
+        if (index < 0) return null
+        return {
+          service: row.service,
+          position: index + 1,
+          estimatedWait: index * row.service.expectedDuration,
+        }
+      })
+      .find(Boolean)
+
+    return {
+      services: serviceList,
+      statuses: Object.fromEntries(rows.map((row) => [row.service.id, row.status])),
+      lengths: Object.fromEntries(rows.map((row) => [row.service.id, row.entries.length])),
+      active: mine || null,
+    }
+  }, [user?.id])
+
   useEffect(() => {
     if (!user) {
       setLoading(false)
-      return
+      return undefined
     }
 
     let cancelled = false
@@ -35,30 +69,18 @@ export default function JoinQueue() {
       setError('')
 
       try {
-        const serviceList = await apiGet('/services')
-        const statusEntries = await Promise.all(serviceList.map(async (service) => {
-          const queueStatus = await apiGet(`/queues/${service.id}/status`)
-          return [service.id, queueStatus.status]
-        }))
-
-        const activeChecks = await Promise.allSettled(serviceList.map(async (service) => {
-          const queue = await apiGet(`/queues/${service.id}?userId=${user.id}`)
-          return { service, queue }
-        }))
-
+        const result = await loadQueues()
         if (cancelled) return
 
-        const openServices = serviceList.filter((service) => (
-          statusEntries.find(([id]) => id === service.id)?.[1] === 'open'
+        setServices(result.services)
+        setQueueStatuses(result.statuses)
+        setQueueLengths(result.lengths)
+        setActiveQueue(result.active)
+
+        const firstOpen = result.services.find((item) => result.statuses[item.id] === 'open')
+        setSelectedService((current) => (
+          current || result.active?.service.id || firstOpen?.id || result.services[0]?.id || ''
         ))
-        const currentActive = activeChecks
-          .filter((result) => result.status === 'fulfilled')
-          .map((result) => result.value)
-          .find(({ queue }) => typeof queue.position === 'number')
-        setServices(serviceList)
-        setQueueStatuses(Object.fromEntries(statusEntries))
-        setSelectedService((current) => current || openServices[0]?.id || serviceList[0]?.id || '')
-        setActiveQueue(currentActive || null)
       } catch (err) {
         if (!cancelled) setError(err.message)
       } finally {
@@ -70,18 +92,28 @@ export default function JoinQueue() {
     return () => {
       cancelled = true
     }
-  }, [user?.id])
+  }, [user?.id, loadQueues])
+
+  async function refresh() {
+    const result = await loadQueues()
+    setServices(result.services)
+    setQueueStatuses(result.statuses)
+    setQueueLengths(result.lengths)
+    setActiveQueue(result.active)
+  }
 
   const openServices = useMemo(
     () => services.filter((service) => queueStatuses[service.id] === 'open'),
     [services, queueStatuses],
   )
   const service = services.find((s) => s.id === selectedService)
-  const selectedQueue = activeQueue?.service.id === selectedService ? activeQueue.queue : null
-  const queueLength = selectedQueue?.queue?.length ?? 0
-  const estimatedWait = selectedQueue
-    ? selectedQueue.estimatedWait
-    : service ? queueLength * service.expectedDuration : 0
+  const queueLength = queueLengths[selectedService] ?? 0
+  // Already in this line? Show your own wait. Otherwise show what a new
+  // joiner would face — everyone currently ahead of them.
+  const inSelectedQueue = activeQueue?.service.id === selectedService
+  const estimatedWait = inSelectedQueue
+    ? activeQueue.estimatedWait
+    : queueLength * (service?.expectedDuration || 0)
 
   async function handleJoin() {
     if (!user || !service) return
@@ -95,8 +127,7 @@ export default function JoinQueue() {
         userId: user.id,
         priority: service.priority,
       })
-      const queue = await apiGet(`/queues/${service.id}?userId=${user.id}`)
-      setActiveQueue({ service, queue })
+      await refresh()
       setNotice(`Joined ${service.name}. Position ${result.position}.`)
     } catch (err) {
       setError(err.message)
@@ -112,10 +143,12 @@ export default function JoinQueue() {
     setError('')
     setNotice('')
 
+    const leftServiceName = activeQueue.service.name
+
     try {
       await apiDelete(`/queues/${activeQueue.service.id}/leave`, { userId: user.id })
-      setActiveQueue(null)
-      setNotice(`Left ${activeQueue.service.name}.`)
+      await refresh()
+      setNotice(`Left ${leftServiceName}.`)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -150,7 +183,7 @@ export default function JoinQueue() {
             >
               {openServices.map((service) => (
                 <option key={service.id} value={service.id}>
-                  {service.name}
+                  {service.name} ({queueLengths[service.id] ?? 0} waiting)
                 </option>
               ))}
             </select>
@@ -163,7 +196,7 @@ export default function JoinQueue() {
                 <strong>{queueLength} people</strong>
               </div>
               <div>
-                <p className="label">Estimated wait</p>
+                <p className="label">{inSelectedQueue ? 'Your estimated wait' : 'Estimated wait'}</p>
                 <strong>{estimatedWait} min</strong>
               </div>
             </div>
@@ -174,7 +207,7 @@ export default function JoinQueue() {
 
           {activeQueue ? (
             <button className="btn btn-primary" type="button" onClick={handleLeave} disabled={leaving}>
-              {leaving ? 'Leaving…' : 'Leave queue'}
+              {leaving ? 'Leaving…' : `Leave ${activeQueue.service.name} queue`}
             </button>
           ) : (
             <button className="btn btn-primary" type="button" onClick={handleJoin} disabled={joining || !service || !user}>
@@ -213,7 +246,10 @@ export default function JoinQueue() {
       {activeQueue && (
         <article className="card">
           <h2>Joined successfully</h2>
-          <p>You are now queued for {activeQueue.service.name}. Your live position is {activeQueue.queue.position}.</p>
+          <p>
+            You are now queued for {activeQueue.service.name}. Your live position is {activeQueue.position}
+            {' '}with an estimated {activeQueue.estimatedWait} min wait.
+          </p>
         </article>
       )}
     </section>

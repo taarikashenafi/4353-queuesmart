@@ -23,6 +23,13 @@ const BCRYPT_ROUNDS = 10;
 // memory rather than in the database.
 export const sessions = new Map(); // token -> userId
 
+// Tests wipe the database between cases, which restarts AUTOINCREMENT ids.
+// Sessions must be dropped at the same time or a token minted in an earlier
+// test would silently resolve to a different (possibly admin) user.
+export function clearSessions() {
+  sessions.clear();
+}
+
 function publicUser(row) {
   return { id: String(row.id), email: row.email, role: row.role };
 }

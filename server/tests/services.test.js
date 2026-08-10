@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app.js';
 import db from '../db/index.js';
 import { resetAppDb } from './helpers/testDb.js';
+import { seedAdminToken, seedUserWithToken } from './helpers/auth.js';
 
 const VALID_SERVICE = {
   name: 'Registrar',
@@ -11,14 +12,22 @@ const VALID_SERVICE = {
   priority: 'medium',
 };
 
+// Creating and editing services is administrator-only, so every write in
+// these specs is made with an admin token.
+let admin;
+
 function createService(overrides = {}) {
   return request(app)
     .post('/api/services')
+    .set('Authorization', admin.auth)
     .send({ ...VALID_SERVICE, ...overrides });
 }
 
 describe('service management API', () => {
-  beforeEach(() => resetAppDb());
+  beforeEach(() => {
+    resetAppDb();
+    admin = seedAdminToken();
+  });
 
   it('lists services persisted in SQLite', async () => {
     await createService();
@@ -130,6 +139,7 @@ describe('service management API', () => {
 
     const res = await request(app)
       .put(`/api/services/${created.body.id}`)
+      .set('Authorization', admin.auth)
       .send(updated);
 
     expect(res.status).toBe(200);
@@ -140,7 +150,10 @@ describe('service management API', () => {
   });
 
   it('returns 404 when updating an unknown service', async () => {
-    const res = await request(app).put('/api/services/9999').send(VALID_SERVICE);
+    const res = await request(app)
+      .put('/api/services/9999')
+      .set('Authorization', admin.auth)
+      .send(VALID_SERVICE);
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'Service not found' });
@@ -148,7 +161,10 @@ describe('service management API', () => {
 });
 
 describe('queue status API', () => {
-  beforeEach(() => resetAppDb());
+  beforeEach(() => {
+    resetAppDb();
+    admin = seedAdminToken();
+  });
 
   it('returns the current queue status', async () => {
     const created = await createService();
@@ -168,9 +184,11 @@ describe('queue status API', () => {
 
     const closed = await request(app)
       .patch(`/api/queues/${created.body.id}/status`)
+      .set('Authorization', admin.auth)
       .send({ status: 'closed' });
     const reopened = await request(app)
       .patch(`/api/queues/${created.body.id}/status`)
+      .set('Authorization', admin.auth)
       .send({ status: 'open' });
 
     expect(closed.status).toBe(200);
@@ -186,9 +204,11 @@ describe('queue status API', () => {
     const created = await createService();
     const invalid = await request(app)
       .patch(`/api/queues/${created.body.id}/status`)
+      .set('Authorization', admin.auth)
       .send({ status: 'paused' });
     const missing = await request(app)
       .patch('/api/queues/9999/status')
+      .set('Authorization', admin.auth)
       .send({ status: 'closed' });
 
     expect(invalid.status).toBe(400);
@@ -199,17 +219,16 @@ describe('queue status API', () => {
 
   it('rejects joining a closed queue', async () => {
     const created = await createService();
-    const user = db.prepare(`
-      INSERT INTO user_credentials (email, password_hash, role)
-      VALUES (?, ?, ?)
-    `).run('student@uh.edu', 'hash', 'user');
+    const user = seedUserWithToken({ email: 'student@uh.edu' });
     await request(app)
       .patch(`/api/queues/${created.body.id}/status`)
+      .set('Authorization', admin.auth)
       .send({ status: 'closed' });
 
     const res = await request(app)
       .post(`/api/queues/${created.body.id}/join`)
-      .send({ userId: String(user.lastInsertRowid), priority: 'low' });
+      .set('Authorization', user.auth)
+      .send({ userId: String(user.userId), priority: 'low' });
 
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'Queue is closed' });
