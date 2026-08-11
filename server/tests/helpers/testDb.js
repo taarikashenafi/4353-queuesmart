@@ -7,6 +7,7 @@
 //   beforeEach(() => { db = freshDb(); });
 //   afterEach(() => db.close());
 import db, { createDatabase } from '../../db/index.js';
+import { clearSessions } from '../../services/authService.js';
 
 export function freshDb() {
   return createDatabase(':memory:');
@@ -26,4 +27,8 @@ export function resetAppDb() {
     db.prepare(`DELETE FROM "${name}"`).run();
   }
   db.pragma('foreign_keys = ON');
+
+  // Row ids restart after the wipe, so stale in-memory sessions would point
+  // at whoever now owns that id. Drop them together with the data.
+  clearSessions();
 }
