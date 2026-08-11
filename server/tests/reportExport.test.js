@@ -82,6 +82,18 @@ describe('toCsv', () => {
     expect(csv).toContain('"Advising\nAnnex"');
   });
 
+  it('escapes a summary label too, not just the table', () => {
+    // The summary block goes through a separate stringifier from the table,
+    // so it needs its own escaping check.
+    const csv = toCsv({
+      ...REPORT,
+      rows: [],
+      summary: [{ label: 'Total served, all services', value: 5 }],
+    });
+
+    expect(lines(csv)[2]).toBe('"Total served, all services",5');
+  });
+
   it('still emits the header row when the result set is empty', () => {
     const csv = toCsv({ ...REPORT, rows: [], summary: [] });
 
