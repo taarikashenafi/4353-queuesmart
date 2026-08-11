@@ -11,7 +11,11 @@ import historyRouter from './routes/history.js';
 // directly with Supertest.
 const app = express();
 
-app.use(cors());
+// Content-Disposition is not a CORS-safelisted response header, so without
+// this the frontend (vite on :5173, API on :3000) cannot read the filename the
+// report routes attach to a download — response.headers.get() just returns
+// null. Everything else about the default CORS config is unchanged.
+app.use(cors({ exposedHeaders: ['Content-Disposition'] }));
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
