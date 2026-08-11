@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app.js';
 import db from '../db/index.js';
 import { resetAppDb } from './helpers/testDb.js';
+import { issueToken } from './helpers/auth.js';
 
 function createUser(email = 'student@uh.edu') {
   const result = db
@@ -47,16 +48,19 @@ function addEntry(queueId, userId, { status = 'served', position = 1, priority =
 
 describe('history API', () => {
   let userId;
+  let auth;
   let service;
 
   beforeEach(() => {
     resetAppDb();
     userId = createUser();
+    // /api/history/:userId only serves the user named in the path.
+    auth = issueToken(userId).auth;
     service = createService();
   });
 
   it('returns an empty array for a user with no history', async () => {
-    const res = await request(app).get(`/api/history/${userId}`);
+    const res = await request(app).get(`/api/history/${userId}`).set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -67,7 +71,7 @@ describe('history API', () => {
     addEntry(service.queueId, userId, { status: 'canceled', position: 1, joinedAt: '2026-08-02 09:00:00' });
     addEntry(service.queueId, userId, { status: 'waiting', position: 1, joinedAt: '2026-08-03 09:00:00' });
 
-    const res = await request(app).get(`/api/history/${userId}`);
+    const res = await request(app).get(`/api/history/${userId}`).set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body.map((h) => h.outcome)).toEqual(['canceled', 'served']);

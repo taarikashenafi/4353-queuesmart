@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import db from '../db/index.js';
+import { requireAuth, requireSelfOrAdminParam } from '../middleware/auth.js';
 
 // History and stats module (owner: Uchenna)
 // GET /api/history/:userId, GET /api/stats
+//
+// Guard added by Armaan for the assignment-3 feedback: a user's visit history
+// is personal, so it is readable only by that user or an administrator.
 
 const router = Router();
 
-router.get('/history/:userId', (req, res) => {
+router.get('/history/:userId', requireAuth, requireSelfOrAdminParam('userId'), (req, res) => {
   const rows = db
     .prepare(`
       SELECT
