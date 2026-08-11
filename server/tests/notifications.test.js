@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app.js';
 import db from '../db/index.js';
 import { resetAppDb } from './helpers/testDb.js';
+import { issueToken } from './helpers/auth.js';
 import { estimateWait } from '../waitTime.js';
 
 function createUser(email = 'student@uh.edu') {
@@ -53,14 +54,17 @@ describe('estimateWait', () => {
 
 describe('notifications API', () => {
   let userId;
+  let auth;
 
   beforeEach(() => {
     resetAppDb();
     userId = createUser();
+    // Both notification routes are scoped to the user named in the path.
+    auth = issueToken(userId).auth;
   });
 
   it('returns an empty array for a user with no notifications', async () => {
-    const res = await request(app).get(`/api/notifications/${userId}`);
+    const res = await request(app).get(`/api/notifications/${userId}`).set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -72,7 +76,7 @@ describe('notifications API', () => {
     const otherUserId = createUser('other@uh.edu');
     seedNotification(otherUserId, { message: 'not mine' });
 
-    const res = await request(app).get(`/api/notifications/${userId}`);
+    const res = await request(app).get(`/api/notifications/${userId}`).set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body.map((n) => n.message)).toEqual(['second', 'first']);
@@ -83,7 +87,9 @@ describe('notifications API', () => {
     const otherUserId = createUser('other@uh.edu');
     seedNotification(otherUserId);
 
-    const res = await request(app).post(`/api/notifications/${userId}/read`);
+    const res = await request(app)
+      .post(`/api/notifications/${userId}/read`)
+      .set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body.every((n) => n.status === 'viewed')).toBe(true);

@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app.js';
 import db from '../db/index.js';
 import { resetAppDb } from './helpers/testDb.js';
+import { issueToken, seedAdminToken } from './helpers/auth.js';
 
 function createUser(email = 'student@uh.edu') {
   const result = db
@@ -47,16 +48,22 @@ function addEntry(queueId, userId, { status = 'served', position = 1, priority =
 
 describe('history API', () => {
   let userId;
+  let auth;
+  let adminAuth;
   let service;
 
   beforeEach(() => {
     resetAppDb();
     userId = createUser();
+    // /api/history/:userId only serves the user named in the path;
+    // /api/stats is administrator-only.
+    auth = issueToken(userId).auth;
+    adminAuth = seedAdminToken().auth;
     service = createService();
   });
 
   it('returns an empty array for a user with no history', async () => {
-    const res = await request(app).get(`/api/history/${userId}`);
+    const res = await request(app).get(`/api/history/${userId}`).set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -67,7 +74,7 @@ describe('history API', () => {
     addEntry(service.queueId, userId, { status: 'canceled', position: 1, joinedAt: '2026-08-02 09:00:00' });
     addEntry(service.queueId, userId, { status: 'waiting', position: 1, joinedAt: '2026-08-03 09:00:00' });
 
-    const res = await request(app).get(`/api/history/${userId}`);
+    const res = await request(app).get(`/api/history/${userId}`).set('Authorization', auth);
 
     expect(res.status).toBe(200);
     expect(res.body.map((h) => h.outcome)).toEqual(['canceled', 'served']);
@@ -78,7 +85,7 @@ describe('history API', () => {
   });
 
   it('reports zero served and zero average wait for a service with no history', async () => {
-    const res = await request(app).get('/api/stats');
+    const res = await request(app).get('/api/stats').set('Authorization', adminAuth);
 
     expect(res.status).toBe(200);
     expect(res.body.find((s) => s.serviceId === String(service.serviceId))).toEqual({
@@ -95,7 +102,7 @@ describe('history API', () => {
     addEntry(service.queueId, secondUserId, { status: 'served', position: 3 });
     addEntry(service.queueId, userId, { status: 'canceled', position: 2 });
 
-    const res = await request(app).get('/api/stats');
+    const res = await request(app).get('/api/stats').set('Authorization', adminAuth);
     const stat = res.body.find((s) => s.serviceId === String(service.serviceId));
 
     expect(stat.totalServed).toBe(2);
