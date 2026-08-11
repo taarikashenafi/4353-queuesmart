@@ -17,6 +17,7 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.2",
     "cors": "^2.8.6",
+    "csv-writer": "^1.6.0",
     "express": "^5.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
