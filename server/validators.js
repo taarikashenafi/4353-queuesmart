@@ -51,6 +51,43 @@ export function requireEmail(value, field = 'email') {
   }
 }
 
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// Report filters arrive as query strings, so each one is optional and every
+// value is text. These return null when the caller left the filter off, so the
+// result can be handed straight to a query builder.
+//
+// Rejects a date that parses but is not a real calendar day: JavaScript rolls
+// 2026-02-30 forward to March 2 rather than failing, which would silently
+// widen a report's date range instead of telling the admin they mistyped.
+export function optionalIsoDate(value, field) {
+  if (value === undefined || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string' || !ISO_DATE_REGEX.test(value)) {
+    throw new ApiError(400, `${field} must be a date in YYYY-MM-DD format`);
+  }
+
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new ApiError(400, `${field} must be a real calendar date`);
+  }
+  return value;
+}
+
+// Optional row id from a query string. Rejecting anything that is not digits
+// also stops `1 OR 1=1` at the HTTP boundary — defence in depth behind the
+// parameterized SQL, not a replacement for it.
+export function optionalPositiveId(value, field) {
+  if (value === undefined || value === '') {
+    return null;
+  }
+  if (!/^\d+$/.test(String(value)) || Number(value) <= 0) {
+    throw new ApiError(400, `${field} must be a positive integer`);
+  }
+  return Number(value);
+}
+
 export function requireMinLength(value, field, min) {
   requireString(value, field);
   if (value.length < min) {
