@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db/index.js';
-import { requireAuth, requireSelfOrAdminParam } from '../middleware/auth.js';
+import { adminOnly, requireAuth, requireSelfOrAdminParam } from '../middleware/auth.js';
 
 // History and stats module (owner: Uchenna)
 // GET /api/history/:userId, GET /api/stats
@@ -31,7 +31,9 @@ router.get('/history/:userId', requireAuth, requireSelfOrAdminParam('userId'), (
   res.json(rows.map((row) => ({ ...row, id: String(row.id), serviceId: String(row.serviceId) })));
 });
 
-router.get('/stats', (req, res) => {
+// Service-wide totals across every user — operational reporting, not
+// something a queued student needs. No user-facing screen calls it.
+router.get('/stats', adminOnly, (req, res) => {
   const rows = db
     .prepare(`
       SELECT
