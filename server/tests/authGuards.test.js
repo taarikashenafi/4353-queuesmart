@@ -23,6 +23,7 @@ const VALID_SERVICE = {
 
 let admin;
 let member;
+let other;
 let serviceId;
 
 function seedService() {
@@ -68,6 +69,54 @@ function adminRoutes() {
         const req = request(app).patch(`/api/queues/${serviceId}/status`);
         if (token) req.set('Authorization', token);
         return req.send({ status: 'closed' });
+      },
+    },
+  ];
+}
+
+// Every route that names the user in the path. Built lazily so the ids come
+// from whichever users the current beforeEach seeded. All of them target
+// `other`, so `member` is always someone else's request.
+function ownedRoutes() {
+  return [
+    {
+      name: 'GET /api/profile/:userId',
+      send: (token) => {
+        const req = request(app).get(`/api/profile/${other.userId}`);
+        if (token) req.set('Authorization', token);
+        return req.send();
+      },
+    },
+    {
+      name: 'PUT /api/profile/:userId',
+      send: (token) => {
+        const req = request(app).put(`/api/profile/${other.userId}`);
+        if (token) req.set('Authorization', token);
+        return req.send({ fullName: 'Alex Other' });
+      },
+    },
+    {
+      name: 'GET /api/history/:userId',
+      send: (token) => {
+        const req = request(app).get(`/api/history/${other.userId}`);
+        if (token) req.set('Authorization', token);
+        return req.send();
+      },
+    },
+    {
+      name: 'GET /api/notifications/:userId',
+      send: (token) => {
+        const req = request(app).get(`/api/notifications/${other.userId}`);
+        if (token) req.set('Authorization', token);
+        return req.send();
+      },
+    },
+    {
+      name: 'POST /api/notifications/:userId/read',
+      send: (token) => {
+        const req = request(app).post(`/api/notifications/${other.userId}/read`);
+        if (token) req.set('Authorization', token);
+        return req.send();
       },
     },
   ];
@@ -213,5 +262,97 @@ describe('queue entry ownership', () => {
     expect(res.status).toBe(403);
     expect(db.prepare('SELECT status FROM queue_entries WHERE user_id = ?').get(other.userId).status)
       .toBe('waiting');
+  });
+});
+
+// The assignment-3 feedback again, one level down: the admin routes were the
+// obvious hole, but the per-user routes leaked just as much by trusting the
+// id in the URL. Every case below aims at `other`'s data while signed in as
+// `member`.
+describe('per-user data ownership', () => {
+  beforeEach(() => {
+    resetAppDb();
+    admin = seedAdminToken();
+    member = seedUserWithToken({ email: 'student@uh.edu' });
+    other = seedUserWithToken({ email: 'other@uh.edu' });
+    db.prepare('INSERT INTO notifications (user_id, message, status) VALUES (?, ?, ?)')
+      .run(other.userId, 'You are next in line', 'sent');
+  });
+
+  it.each(ownedRoutes())('rejects $name without a token', async ({ send }) => {
+    const res = await send(null);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Authentication required' });
+  });
+
+  it.each(ownedRoutes())('rejects $name with an unrecognized token', async ({ send }) => {
+    const res = await send('Bearer not-a-real-token');
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Invalid or expired session token' });
+  });
+
+  it.each(ownedRoutes())('rejects $name for a different signed-in user', async ({ send }) => {
+    const res = await send(member.auth);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: 'You can only access your own data' });
+  });
+
+  it.each(ownedRoutes())('allows an administrator through $name', async ({ send }) => {
+    const res = await send(admin.auth);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('lets a user read their own profile, history, and notifications', async () => {
+    const profile = await request(app)
+      .get(`/api/profile/${member.userId}`)
+      .set('Authorization', member.auth);
+    const history = await request(app)
+      .get(`/api/history/${member.userId}`)
+      .set('Authorization', member.auth);
+    const notifications = await request(app)
+      .get(`/api/notifications/${member.userId}`)
+      .set('Authorization', member.auth);
+
+    expect(profile.status).toBe(200);
+    expect(profile.body.email).toBe('student@uh.edu');
+    expect(history.status).toBe(200);
+    expect(notifications.status).toBe(200);
+    expect(notifications.body).toEqual([]);
+  });
+
+  it("leaves another user's profile untouched when the guard rejects the edit", async () => {
+    const res = await request(app)
+      .put(`/api/profile/${other.userId}`)
+      .set('Authorization', member.auth)
+      .send({ fullName: 'Hijacked Name' });
+
+    expect(res.status).toBe(403);
+    expect(db.prepare('SELECT full_name FROM user_profiles WHERE user_id = ?').get(other.userId))
+      .toBeUndefined();
+  });
+
+  it("leaves another user's notifications unread when the guard rejects the request", async () => {
+    const res = await request(app)
+      .post(`/api/notifications/${other.userId}/read`)
+      .set('Authorization', member.auth);
+
+    expect(res.status).toBe(403);
+    expect(db.prepare('SELECT status FROM notifications WHERE user_id = ?').get(other.userId).status)
+      .toBe('sent');
+  });
+
+  it('rejects GET /api/stats for everyone except administrators', async () => {
+    const anonymous = await request(app).get('/api/stats');
+    const nonAdmin = await request(app).get('/api/stats').set('Authorization', member.auth);
+    const asAdmin = await request(app).get('/api/stats').set('Authorization', admin.auth);
+
+    expect(anonymous.status).toBe(401);
+    expect(nonAdmin.status).toBe(403);
+    expect(nonAdmin.body).toEqual({ error: 'Administrator access required' });
+    expect(asAdmin.status).toBe(200);
   });
 });

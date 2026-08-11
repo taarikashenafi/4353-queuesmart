@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import { resetAppDb } from './helpers/testDb.js';
+import { issueToken, seedAdminToken } from './helpers/auth.js';
 
 const VALID_USER = { email: 'student@uh.edu', password: 'password123', role: 'user' };
 const VALID_PROFILE = {
@@ -11,19 +12,26 @@ const VALID_PROFILE = {
 };
 
 let userId;
+let auth;
+// Both routes are owner-or-admin guarded, so a caller asking about a user id
+// that is not their own needs the admin token — otherwise the guard answers
+// 403 before the service ever gets to report "not found".
+let adminAuth;
 
 beforeEach(async () => {
   resetAppDb();
   const res = await request(app).post('/api/auth/register').send(VALID_USER);
   userId = res.body.id;
+  auth = issueToken(userId).auth;
+  adminAuth = seedAdminToken().auth;
 });
 
-function getProfile(id = userId) {
-  return request(app).get(`/api/profile/${id}`);
+function getProfile(id = userId, token = auth) {
+  return request(app).get(`/api/profile/${id}`).set('Authorization', token);
 }
 
-function putProfile(body, id = userId) {
-  return request(app).put(`/api/profile/${id}`).send(body);
+function putProfile(body, id = userId, token = auth) {
+  return request(app).put(`/api/profile/${id}`).set('Authorization', token).send(body);
 }
 
 describe('GET /api/profile/:userId', () => {
@@ -41,7 +49,7 @@ describe('GET /api/profile/:userId', () => {
   });
 
   it('returns 404 for an unknown user', async () => {
-    const res = await getProfile('9999');
+    const res = await getProfile('9999', adminAuth);
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'User not found' });
@@ -87,7 +95,7 @@ describe('PUT /api/profile/:userId', () => {
   });
 
   it('returns 404 for an unknown user', async () => {
-    const res = await putProfile(VALID_PROFILE, '9999');
+    const res = await putProfile(VALID_PROFILE, '9999', adminAuth);
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'User not found' });

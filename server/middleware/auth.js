@@ -78,3 +78,24 @@ export function requireSelfOrAdmin(req, res, next) {
   }
   return next();
 }
+
+// Same rule as requireSelfOrAdmin, but for routes that name the user in the
+// path (`/api/profile/:userId`) instead of the body. Without this, changing a
+// digit in the URL reads or edits someone else's record.
+//
+// Returns a middleware so each route can name its own parameter.
+export function requireSelfOrAdminParam(paramName) {
+  return function selfOrAdminParam(req, res, next) {
+    if (!req.user) {
+      return next(new ApiError(401, 'Authentication required'));
+    }
+    if (req.user.role === 'admin') {
+      return next();
+    }
+
+    if (String(req.params[paramName]) !== req.user.id) {
+      return next(new ApiError(403, 'You can only access your own data'));
+    }
+    return next();
+  };
+}

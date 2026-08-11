@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import db from '../db/index.js';
+import { adminOnly, requireAuth, requireSelfOrAdminParam } from '../middleware/auth.js';
 
 // History and stats module (owner: Uchenna)
 // GET /api/history/:userId, GET /api/stats
+//
+// Guard added by Armaan for the assignment-3 feedback: a user's visit history
+// is personal, so it is readable only by that user or an administrator.
 
 const router = Router();
 
-router.get('/history/:userId', (req, res) => {
+router.get('/history/:userId', requireAuth, requireSelfOrAdminParam('userId'), (req, res) => {
   const rows = db
     .prepare(`
       SELECT
@@ -27,7 +31,9 @@ router.get('/history/:userId', (req, res) => {
   res.json(rows.map((row) => ({ ...row, id: String(row.id), serviceId: String(row.serviceId) })));
 });
 
-router.get('/stats', (req, res) => {
+// Service-wide totals across every user — operational reporting, not
+// something a queued student needs. No user-facing screen calls it.
+router.get('/stats', adminOnly, (req, res) => {
   const rows = db
     .prepare(`
       SELECT
