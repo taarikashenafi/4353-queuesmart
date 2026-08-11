@@ -9,6 +9,7 @@ import request from 'supertest';
 import app from '../app.js';
 import { resetAppDb } from './helpers/testDb.js';
 import { seedAdminToken, seedUserWithToken } from './helpers/auth.js';
+import { downloadName } from '../routes/reports.js';
 
 const ROUTES = [
   '/api/reports/participation',
@@ -45,6 +46,24 @@ describe('report route protection', () => {
 
     expect(res.status).toBe(403);
     expect(res.body).toEqual({ error: 'Administrator access required' });
+  });
+});
+
+describe('download filename', () => {
+  // The frontend's apiDownload() parses this name back out of the
+  // Content-Disposition header, so the format is a contract, not cosmetic.
+  it.each(['participation', 'services', 'summary'])('names the %s export', (slug) => {
+    expect(downloadName(slug, 'csv')).toMatch(
+      new RegExp(`^queuesmart-${slug}-\\d{4}-\\d{2}-\\d{2}\\.csv$`),
+    );
+  });
+
+  it('carries the extension it is given', () => {
+    expect(downloadName('summary', 'pdf')).toMatch(/\.pdf$/);
+  });
+
+  it('contains no characters that would need quoting in a header', () => {
+    expect(downloadName('participation', 'csv')).not.toMatch(/[";\s]/);
   });
 });
 

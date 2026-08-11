@@ -47,7 +47,10 @@ function parseFormat(query) {
   return format;
 }
 
-function downloadName(slug, extension) {
+// Exported for testing: the frontend's apiDownload() reads this name back out
+// of the Content-Disposition header, so both ends of that contract are pinned
+// by one assertion.
+export function downloadName(slug, extension) {
   const today = new Date().toISOString().slice(0, 10);
   return `queuesmart-${slug}-${today}.${extension}`;
 }
