@@ -6,6 +6,7 @@ import servicesRouter from './routes/services.js';
 import queuesRouter from './routes/queues.js';
 import notificationsRouter from './routes/notifications.js';
 import historyRouter from './routes/history.js';
+import reportsRouter from './routes/reports.js';
 
 // The app is exported without .listen() so unit tests can drive it
 // directly with Supertest.
@@ -24,6 +25,7 @@ app.use('/api/services', servicesRouter);
 app.use('/api/queues', queuesRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api', historyRouter); // /api/history/:userId and /api/stats
+app.use('/api/reports', reportsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
