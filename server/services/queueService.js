@@ -1,5 +1,6 @@
 import db from '../db/index.js';
 import { ApiError, requireFields, requireOneOf } from '../validators.js';
+import { observedServiceMinutes } from './smartWait.js';
 
 function ensureSchema() {
   db.exec(`
@@ -165,10 +166,12 @@ export function leaveQueue(serviceId, input) {
 export function getQueue(serviceId, userId) {
   const service = getService(serviceId);
   const orderedQueue = getQueueEntries(serviceId);
+  const waitModel = observedServiceMinutes(service.id);
   const result = {
     serviceId: String(service.id),
     serviceName: service.name,
     queue: orderedQueue,
+    waitModel,
   };
 
   if (userId !== undefined && userId !== null && userId !== '') {
@@ -179,7 +182,7 @@ export function getQueue(serviceId, userId) {
     }
 
     result.position = position;
-    result.estimatedWait = (position - 1) * service.expectedDuration;
+    result.estimatedWait = (position - 1) * waitModel.minutesPerPerson;
   }
 
   return result;
@@ -208,7 +211,10 @@ export function serveNext(serviceId) {
       throw new ApiError(404, 'No users in queue');
     }
 
-    db.prepare("UPDATE queue_entries SET status = 'served' WHERE id = ?").run(first.id);
+    db.prepare("UPDATE queue_entries SET status = 'served', served_at = ? WHERE id = ?").run(
+      new Date().toISOString(),
+      first.id,
+    );
     syncPositions(queue.id);
 
     return { message: 'Served next user', userId: String(first.userId) };

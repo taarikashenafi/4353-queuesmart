@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS queue_entries (
   user_id INTEGER NOT NULL REFERENCES user_credentials(id),
   position INTEGER NOT NULL,
   joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  served_at TEXT,
   status TEXT NOT NULL CHECK (status IN ('waiting', 'served', 'canceled')) DEFAULT 'waiting',
   priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'low'
 );
