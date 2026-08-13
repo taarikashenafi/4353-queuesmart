@@ -10,6 +10,7 @@ import NotFound from './pages/NotFound.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import ServiceManagement from './pages/admin/ServiceManagement.jsx'
 import QueueManagement from './pages/admin/QueueManagement.jsx'
+import Reports from './pages/admin/Reports.jsx'
 import RequireAdmin from './components/RequireAdmin.jsx'
 import { authRoutes } from './authRoutes.jsx'
 
@@ -41,6 +42,7 @@ function App() {
         <Route path="admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
         <Route path="admin/services" element={<RequireAdmin><ServiceManagement /></RequireAdmin>} />
         <Route path="admin/queues" element={<RequireAdmin><QueueManagement /></RequireAdmin>} />
+        <Route path="admin/reports" element={<RequireAdmin><Reports /></RequireAdmin>} />
         {/* Other teammate routes go here. */}
         <Route path="home" element={<Home />} />
         {/* Teammate routes go here. */}

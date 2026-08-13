@@ -5,15 +5,22 @@ import { apiGet } from '../../api/client.js'
 
 export default function AdminDashboard() {
   const [services, setServices] = useState([])
+  const [summaryReport, setSummaryReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState('')
 
   useEffect(() => {
     let active = true
 
-    apiGet('/services')
-      .then((data) => {
-        if (active) setServices(data)
+    Promise.all([
+      apiGet('/services'),
+      apiGet('/reports/summary')
+    ])
+      .then(([servicesData, summaryData]) => {
+        if (active) {
+          setServices(servicesData)
+          setSummaryReport(summaryData)
+        }
       })
       .catch((error) => {
         if (active) setApiError(error.message)
@@ -27,25 +34,39 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  const highPriorityCount = services.filter((service) => service.priority === 'high').length
-  const averageDuration = services.length
-    ? Math.round(services.reduce((total, service) => total + service.expectedDuration, 0) / services.length)
-    : 0
+  const getStat = (label) => {
+    if (!summaryReport || !summaryReport.summary) return 0;
+    const stat = summaryReport.summary.find(s => s.label === label);
+    return stat ? stat.value : 0;
+  }
+
+  const totalServed = getStat('Total served');
+  const averageWait = getStat('Average wait (min)');
+  
+  let busiestService = 'N/A';
+  if (summaryReport && summaryReport.rows && summaryReport.rows.length > 0) {
+    const busiest = summaryReport.rows.reduce((prev, current) => 
+      (current.totalServed > prev.totalServed) ? current : prev
+    );
+    if (busiest.totalServed > 0) {
+      busiestService = busiest.serviceName;
+    }
+  }
 
   return (
     <div className="admin-page">
       <AdminPageHeader
         title="Operations at a glance"
         description="Review configured services, expected visit times, and queue priorities."
-        action={{ to: '/admin/services', label: '+ Create service' }}
+        action={{ to: '/admin/reports', label: 'View Reports' }}
       />
 
       {apiError && <p className="error-text" role="alert">{apiError}</p>}
 
       <section className="stat-grid" aria-label="Service summary">
-        <article className="card stat-card"><span>Configured services</span><strong>{services.length}</strong><p>Available through the service API</p></article>
-        <article className="card stat-card"><span>High priority</span><strong>{highPriorityCount}</strong><p>Services prioritized by administrators</p></article>
-        <article className="card stat-card"><span>Average duration</span><strong>{averageDuration}<small> min</small></strong><p>Expected time per visit</p></article>
+        <article className="card stat-card"><span>Total served</span><strong>{totalServed}</strong><p>Across all services</p></article>
+        <article className="card stat-card"><span>Average wait</span><strong>{averageWait}<small> min</small></strong><p>Actual historical wait</p></article>
+        <article className="card stat-card"><span>Busiest service</span><strong>{busiestService}</strong><p>Highest throughput</p></article>
       </section>
 
       <section className="card admin-table-card">
