@@ -237,4 +237,24 @@ describe('report responses', () => {
     expect(res.status).toBe(200);
     expect(res.text.split('\n')[0]).toMatch(/^User,/);
   });
+
+  it.each(ROUTES)('sends %s as a real PDF with an attachment filename', async (route) => {
+    const slug = route.split('/').pop();
+    const res = await asAdmin(`${route}?format=pdf`).buffer().parse((r, cb) => {
+      const chunks = [];
+      r.on('data', (chunk) => chunks.push(chunk));
+      r.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^application\/pdf/);
+    expect(res.headers['content-disposition']).toBe(
+      `attachment; filename="${downloadName(slug, 'pdf')}"`,
+    );
+
+    // %PDF- is the magic number every reader checks first. Asserting it means
+    // this test fails on a corrupt or truncated buffer, not just a missing one.
+    expect(res.body.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(res.body.length).toBeGreaterThan(500);
+  });
 });

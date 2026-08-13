@@ -21,6 +21,16 @@ function BrandMark() {
 }
 
 export default function Navbar() {
+  let user = null
+  try {
+    user = JSON.parse(localStorage.getItem('qs_user'))
+  } catch {}
+
+  const navLinks = [...links]
+  if (user && user.role === 'admin') {
+    navLinks.push({ to: '/admin/reports', label: 'Reports' })
+  }
+
   return (
     <header className="nav">
       <div className="nav-inner">
@@ -30,7 +40,7 @@ export default function Navbar() {
         </Link>
 
         <nav className="nav-links" aria-label="Primary">
-          {links.map((l) => (
+          {navLinks.map((l) => (
             <NavLink
               key={l.to}
               to={l.to}

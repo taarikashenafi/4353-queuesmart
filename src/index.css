@@ -393,6 +393,18 @@ h3 { font-size: 1.15rem; }
 .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
 .icon-btn-danger { color: var(--left); }
 .icon-btn-danger:hover:not(:disabled) { color: var(--left); border-color: var(--left); background: var(--left-soft); }
+/* Reports. The toolbar auto-fits so the four filters sit on one row on a laptop
+   and wrap to two on a narrow window, without a media query per breakpoint. */
+.report-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 16px; }
+.report-toolbar .field { margin: 0; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 10px; grid-column: 1 / -1; }
+.report-meta { display: grid; gap: 2px; }
+.report-meta p { color: var(--muted); font-size: 0.88rem; }
+.report-filters { color: var(--faint); font-size: 0.82rem; }
+.report-summary { display: flex; flex-wrap: wrap; gap: 32px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+.report-summary > div { display: grid; gap: 2px; }
+.report-summary dt { color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+.report-summary dd { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; }
 .empty-state { display: grid; justify-items: center; gap: 7px; padding: 48px 16px; text-align: center; }
 .empty-state p { color: var(--muted); }
 .empty-mark { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; color: var(--served); background: var(--served-soft); font-size: 1.5rem; font-weight: 700; }
