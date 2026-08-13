@@ -1,0 +1,9 @@
+Service,Served,Avg wait (min),Busiest hour
+Academic Advising,3,1,20:00
+Career Services,2,1,20:00
+Financial Aid,1,0,20:00
+Tech Support Desk,2,0,20:00
+
+Total served,8
+Average wait (min),1
+Busiest hour,20:00
