@@ -8,25 +8,25 @@ export default function AdminDashboard() {
   const [summaryReport, setSummaryReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState('')
+  const [statsError, setStatsError] = useState(false)
 
   useEffect(() => {
     let active = true
 
-    Promise.all([
-      apiGet('/services'),
-      apiGet('/reports/summary')
-    ])
-      .then(([servicesData, summaryData]) => {
-        if (active) {
-          setServices(servicesData)
-          setSummaryReport(summaryData)
-        }
-      })
-      .catch((error) => {
-        if (active) setApiError(error.message)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
+    // Settled rather than all: the stat tiles are a nice-to-have layered on top
+    // of the reporting module, and the service table is what this page is for.
+    // A reporting outage should cost the three tiles, not the whole screen.
+    Promise.allSettled([apiGet('/services'), apiGet('/reports/summary')])
+      .then(([servicesResult, summaryResult]) => {
+        if (!active) return
+
+        if (servicesResult.status === 'fulfilled') setServices(servicesResult.value)
+        else setApiError(servicesResult.reason.message)
+
+        if (summaryResult.status === 'fulfilled') setSummaryReport(summaryResult.value)
+        else setStatsError(true)
+
+        setLoading(false)
       })
 
     return () => {
@@ -34,24 +34,25 @@ export default function AdminDashboard() {
     }
   }, [])
 
+  // An em dash rather than 0 when the figure is unknown: "0 served" is a claim
+  // about the data, and it is the wrong one if the report simply failed to load.
   const getStat = (label) => {
-    if (!summaryReport || !summaryReport.summary) return 0;
-    const stat = summaryReport.summary.find(s => s.label === label);
-    return stat ? stat.value : 0;
+    const stat = summaryReport?.summary?.find((s) => s.label === label)
+    return stat ? stat.value : '—'
   }
 
-  const totalServed = getStat('Total served');
-  const averageWait = getStat('Average wait (min)');
-  
-  let busiestService = 'N/A';
-  if (summaryReport && summaryReport.rows && summaryReport.rows.length > 0) {
-    const busiest = summaryReport.rows.reduce((prev, current) => 
-      (current.totalServed > prev.totalServed) ? current : prev
-    );
-    if (busiest.totalServed > 0) {
-      busiestService = busiest.serviceName;
-    }
-  }
+  const totalServed = getStat('Total served')
+  const averageWait = getStat('Average wait (min)')
+
+  // Busiest service is derived rather than read from summary, because the
+  // summary block reports the busiest *hour*. The rows carry per-service
+  // throughput, so the winner is the max of those.
+  let busiestService = summaryReport ? 'None yet' : '—'
+  const busiest = summaryReport?.rows?.reduce(
+    (prev, current) => (current.totalServed > prev.totalServed ? current : prev),
+    { totalServed: 0 },
+  )
+  if (busiest?.totalServed > 0) busiestService = busiest.serviceName
 
   return (
     <div className="admin-page">
@@ -64,9 +65,9 @@ export default function AdminDashboard() {
       {apiError && <p className="error-text" role="alert">{apiError}</p>}
 
       <section className="stat-grid" aria-label="Service summary">
-        <article className="card stat-card"><span>Total served</span><strong>{totalServed}</strong><p>Across all services</p></article>
-        <article className="card stat-card"><span>Average wait</span><strong>{averageWait}<small> min</small></strong><p>Actual historical wait</p></article>
-        <article className="card stat-card"><span>Busiest service</span><strong>{busiestService}</strong><p>Highest throughput</p></article>
+        <article className="card stat-card"><span>Total served</span><strong>{totalServed}</strong><p>{statsError ? 'Statistics unavailable' : 'Across all services'}</p></article>
+        <article className="card stat-card"><span>Average wait</span><strong>{averageWait}<small> min</small></strong><p>{statsError ? 'Statistics unavailable' : 'Actual historical wait'}</p></article>
+        <article className="card stat-card"><span>Busiest service</span><strong className="stat-name">{busiestService}</strong><p>{statsError ? 'Statistics unavailable' : 'Highest throughput'}</p></article>
       </section>
 
       <section className="card admin-table-card">

@@ -3,7 +3,7 @@
 // payload contract — no database, no routes, no report-specific knowledge.
 
 import { describe, expect, it } from 'vitest';
-import { toCsv } from '../services/reportExport.js';
+import { describeFilters, toCsv, toPdf } from '../services/reportExport.js';
 
 const REPORT = {
   title: 'Queue Participation History',
@@ -26,6 +26,12 @@ const REPORT = {
 
 function lines(csv) {
   return csv.split('\n');
+}
+
+// The page tree in a PDF records its own size, which is the cheapest way to
+// assert pagination without pulling in a parser just for one test.
+function pageCount(pdf) {
+  return Number(pdf.toString('latin1').match(/\/Count (\d+)/)?.[1]);
 }
 
 describe('toCsv', () => {
@@ -130,5 +136,89 @@ describe('toCsv', () => {
   it('survives a report with no columns rather than throwing', () => {
     expect(toCsv({ columns: [], rows: [], summary: [{ label: 'Total entries', value: 0 }] }))
       .toBe('\nTotal entries,0\n');
+  });
+});
+
+describe('describeFilters', () => {
+  it('reads as a sentence when nothing was narrowed', () => {
+    expect(describeFilters(REPORT.filters)).toBe('All time · All services');
+  });
+
+  it('states both ends of a date range', () => {
+    expect(describeFilters({ from: '2026-08-01', to: '2026-08-31' }))
+      .toBe('2026-08-01 to 2026-08-31 · All services');
+  });
+
+  it('states an open-ended range from only one bound', () => {
+    expect(describeFilters({ from: '2026-08-01' })).toBe('From 2026-08-01 · All services');
+    expect(describeFilters({ to: '2026-08-31' })).toBe('Up to 2026-08-31 · All services');
+  });
+
+  it('names the service rather than echoing its id', () => {
+    expect(describeFilters({ serviceId: 4, serviceName: 'Financial Aid' }))
+      .toBe('All time · Service: Financial Aid');
+  });
+
+  it('does not throw on a missing filters object', () => {
+    expect(describeFilters(undefined)).toBe('All time · All services');
+  });
+});
+
+describe('toPdf', () => {
+  it('produces a readable PDF document', async () => {
+    const pdf = await toPdf(REPORT);
+
+    expect(Buffer.isBuffer(pdf)).toBe(true);
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.subarray(-6).toString()).toContain('%%EOF');
+  });
+
+  it('exports a completely different report without changes', async () => {
+    // Same guarantee the CSV exporter gives: driven by columns/rows, never by
+    // the field names of one particular report.
+    const pdf = await toPdf({
+      title: 'Service Activity',
+      generatedAt: '2026-08-13T18:04:00.000Z',
+      filters: {},
+      columns: [
+        { key: 'name', label: 'Service' },
+        { key: 'totalServed', label: 'Served' },
+      ],
+      rows: [{ name: 'Financial Aid', totalServed: 31 }],
+      summary: [],
+    });
+
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('paginates a long report instead of running off the page', async () => {
+    const rows = Array.from({ length: 400 }, (_, index) => ({
+      userEmail: `student${index}@uh.edu`,
+      serviceName: 'Advising',
+      waitMinutes: index,
+    }));
+
+    const short = await toPdf(REPORT);
+    const long = await toPdf({ ...REPORT, rows });
+
+    expect(pageCount(short)).toBe(1);
+    expect(pageCount(long)).toBeGreaterThan(1);
+    expect(long.length).toBeGreaterThan(short.length);
+  });
+
+  it('renders an empty report rather than throwing', async () => {
+    const pdf = await toPdf({ columns: [], rows: [], summary: [] });
+
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('leaves a null cell blank instead of printing "null"', async () => {
+    const pdf = await toPdf({
+      ...REPORT,
+      summary: [],
+      rows: [{ userEmail: 'student@uh.edu', serviceName: 'Advising', waitMinutes: null }],
+    });
+
+    expect(pdf.toString('latin1')).not.toContain('null');
   });
 });

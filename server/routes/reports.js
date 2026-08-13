@@ -15,7 +15,7 @@
 
 import { Router } from 'express';
 import { adminOnly } from '../middleware/auth.js';
-import { toCsv } from '../services/reportExport.js';
+import { toCsv, toPdf } from '../services/reportExport.js';
 import {
   ApiError,
   optionalIsoDate,
@@ -25,7 +25,7 @@ import {
 
 const router = Router();
 
-const FORMATS = ['json', 'csv'];
+const FORMATS = ['json', 'csv', 'pdf'];
 
 function parseFilters(query) {
   const from = optionalIsoDate(query.from, 'from');
@@ -91,6 +91,17 @@ function reportHandler(reportName, slug) {
 
     if (format === 'json') {
       return res.json(report);
+    }
+
+    if (format === 'pdf') {
+      // Awaited here rather than piped straight to the response so that a
+      // failure mid-render is still a JSON error, not a truncated file the
+      // browser has already started saving.
+      const pdf = await toPdf(report);
+
+      res.type('application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${downloadName(slug, 'pdf')}"`);
+      return res.send(pdf);
     }
 
     res.type('text/csv; charset=utf-8');
