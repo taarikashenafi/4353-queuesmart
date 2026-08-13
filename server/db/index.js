@@ -12,6 +12,13 @@ export function createDatabase(dbPath) {
   const db = new Database(dbPath);
   db.pragma('foreign_keys = ON');
   db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
+
+  const columns = db.prepare('PRAGMA table_info(queue_entries)').all();
+  const hasServedAt = columns.some((column) => column.name === 'served_at');
+  if (!hasServedAt) {
+    db.exec('ALTER TABLE queue_entries ADD COLUMN served_at TEXT');
+  }
+
   return db;
 }
 

@@ -15,6 +15,7 @@ export default function JoinQueue() {
   const [services, setServices] = useState([])
   const [queueStatuses, setQueueStatuses] = useState({})
   const [queueLengths, setQueueLengths] = useState({})
+  const [waitModels, setWaitModels] = useState({})
   const [selectedService, setSelectedService] = useState('')
   const [activeQueue, setActiveQueue] = useState(null)
   const [joining, setJoining] = useState(false)
@@ -33,7 +34,7 @@ export default function JoinQueue() {
         apiGet(`/queues/${service.id}`),
         apiGet(`/queues/${service.id}/status`),
       ])
-      return { service, entries: queue.queue, status: status.status }
+      return { service, entries: queue.queue, queue, status: status.status }
     }))
 
     const mine = rows
@@ -43,7 +44,8 @@ export default function JoinQueue() {
         return {
           service: row.service,
           position: index + 1,
-          estimatedWait: index * row.service.expectedDuration,
+          estimatedWait: row.queue.estimatedWait ?? index * row.service.expectedDuration,
+          waitModel: row.queue.waitModel,
         }
       })
       .find(Boolean)
@@ -52,6 +54,7 @@ export default function JoinQueue() {
       services: serviceList,
       statuses: Object.fromEntries(rows.map((row) => [row.service.id, row.status])),
       lengths: Object.fromEntries(rows.map((row) => [row.service.id, row.entries.length])),
+      waitModels: Object.fromEntries(rows.map((row) => [row.service.id, row.queue.waitModel || null])),
       active: mine || null,
     }
   }, [user?.id])
@@ -75,6 +78,7 @@ export default function JoinQueue() {
         setServices(result.services)
         setQueueStatuses(result.statuses)
         setQueueLengths(result.lengths)
+        setWaitModels(result.waitModels)
         setActiveQueue(result.active)
 
         const firstOpen = result.services.find((item) => result.statuses[item.id] === 'open')
@@ -99,6 +103,7 @@ export default function JoinQueue() {
     setServices(result.services)
     setQueueStatuses(result.statuses)
     setQueueLengths(result.lengths)
+    setWaitModels(result.waitModels)
     setActiveQueue(result.active)
   }
 
@@ -111,9 +116,13 @@ export default function JoinQueue() {
   // Already in this line? Show your own wait. Otherwise show what a new
   // joiner would face — everyone currently ahead of them.
   const inSelectedQueue = activeQueue?.service.id === selectedService
+  const selectedWaitModel = waitModels[selectedService] || null
   const estimatedWait = inSelectedQueue
     ? activeQueue.estimatedWait
-    : queueLength * (service?.expectedDuration || 0)
+    : (selectedWaitModel?.minutesPerPerson ?? service?.expectedDuration ?? 0) * Math.max(queueLength, 0)
+  const waitProvenance = selectedWaitModel?.source === 'default'
+    ? 'using scheduled duration'
+    : `based on ${selectedWaitModel?.sampleSize ?? 0} recent visits`
 
   async function handleJoin() {
     if (!user || !service) return
@@ -201,7 +210,7 @@ export default function JoinQueue() {
               </div>
             </div>
             <p className="muted">
-              {loading ? 'Loading queue data…' : 'Queue length and wait time come from the live backend.'}
+              {loading ? 'Loading queue data…' : waitProvenance}
             </p>
           </div>
 

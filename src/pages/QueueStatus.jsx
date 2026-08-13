@@ -94,6 +94,11 @@ export default function QueueStatus() {
                     <strong>{activeQueue.queue.estimatedWait ?? 0} min</strong>
                   </div>
                 </div>
+                <p className="muted" style={{ marginTop: '8px' }}>
+                  {activeQueue.queue.waitModel?.source === 'default'
+                    ? 'using scheduled duration'
+                    : `based on ${activeQueue.queue.waitModel?.sampleSize ?? 0} recent visits`}
+                </p>
               </div>
               <div className="card" style={{ padding: '18px' }}>
                 <p className="label">Status update</p>
