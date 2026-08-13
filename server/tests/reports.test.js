@@ -1,12 +1,11 @@
-// Report route tests.
-//
-// Everything here runs before the report queries are reached — the guards and
-// the filter validation — so these hold whether or not reportService.js has
-// merged. The payload and CSV-body assertions land alongside it.
+// Report route tests, in the order a request meets them: the admin guard, then
+// filter validation, then the full path through the queries and the exporter
+// out to the HTTP response.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
+import db from '../db/index.js';
 import { resetAppDb } from './helpers/testDb.js';
 import { seedAdminToken, seedUserWithToken } from './helpers/auth.js';
 import { downloadName } from '../routes/reports.js';
@@ -136,5 +135,106 @@ describe('report filter validation', () => {
     const res = await get('?from=&to=&serviceId=&format=');
 
     expect(res.status).not.toBe(400);
+  });
+});
+
+// Everything below needs the report queries, so it exercises the full path:
+// guard -> filter validation -> reportService -> exporter -> HTTP response.
+describe('report responses', () => {
+  let serviceId;
+
+  beforeEach(() => {
+    // A comma in the service name on purpose: it has to survive the round trip
+    // into CSV as a single column.
+    serviceId = Number(
+      db
+        .prepare('INSERT INTO services (name, description, expected_duration, priority) VALUES (?, ?, ?, ?)')
+        .run('Advising, North', 'Degree planning', 15, 'medium').lastInsertRowid,
+    );
+    const queueId = Number(
+      db.prepare("INSERT INTO queues (service_id, status) VALUES (?, 'open')").run(serviceId).lastInsertRowid,
+    );
+    db.prepare(`
+      INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority)
+      VALUES (?, ?, 1, '2026-08-01 09:00:00', 'served', 'low')
+    `).run(queueId, member.userId);
+    db.prepare(`
+      INSERT INTO queue_entries (queue_id, user_id, position, joined_at, status, priority)
+      VALUES (?, ?, 2, '2026-08-02 10:00:00', 'waiting', 'low')
+    `).run(queueId, member.userId);
+  });
+
+  function asAdmin(path) {
+    return request(app).get(path).set('Authorization', admin.auth);
+  }
+
+  it.each(ROUTES)('returns the shared payload shape from %s', async (route) => {
+    const res = await asAdmin(route);
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(
+      ['columns', 'filters', 'generatedAt', 'rows', 'summary', 'title'].sort(),
+    );
+    expect(res.body.columns.length).toBeGreaterThan(0);
+    expect(res.body.columns.every((column) => column.key && column.label)).toBe(true);
+    expect(Array.isArray(res.body.rows)).toBe(true);
+  });
+
+  it('echoes the active filters, including the resolved service name', async () => {
+    const res = await asAdmin(
+      `/api/reports/participation?from=2026-08-01&to=2026-08-31&serviceId=${serviceId}`,
+    );
+
+    expect(res.body.filters).toEqual({
+      from: '2026-08-01',
+      to: '2026-08-31',
+      serviceId,
+      serviceName: 'Advising, North',
+    });
+  });
+
+  it('narrows to one service and excludes entries outside the date range', async () => {
+    const all = await asAdmin('/api/reports/participation');
+    const narrowed = await asAdmin('/api/reports/participation?from=2026-08-01&to=2026-08-01');
+
+    expect(all.body.rows).toHaveLength(2);
+    expect(narrowed.body.rows).toHaveLength(1);
+    expect(narrowed.body.rows[0].outcome).toBe('served');
+  });
+
+  it('sends CSV with the right content type and an attachment filename', async () => {
+    const res = await asAdmin('/api/reports/participation?format=csv');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/csv; charset=utf-8/);
+    expect(res.headers['content-disposition']).toBe(
+      `attachment; filename="${downloadName('participation', 'csv')}"`,
+    );
+  });
+
+  it.each(ROUTES)('matches the CSV header row to the column labels of %s', async (route) => {
+    const json = await asAdmin(route);
+    const csv = await asAdmin(`${route}?format=csv`);
+
+    // Derived from the response rather than hardcoded, so relabelling a column
+    // in the data layer cannot leave the header silently out of step.
+    const expected = json.body.columns.map((column) => column.label).join(',');
+    expect(csv.text.split('\n')[0]).toBe(expected);
+  });
+
+  it('writes one CSV line per row and keeps a comma inside one column', async () => {
+    const json = await asAdmin('/api/reports/participation');
+    const csv = await asAdmin('/api/reports/participation?format=csv');
+
+    const body = csv.text.split('\n').slice(1, 1 + json.body.rows.length);
+    expect(body).toHaveLength(json.body.rows.length);
+    expect(body.every((line) => line.includes('"Advising, North"'))).toBe(true);
+  });
+
+  it('reports zero rows as a header-only CSV rather than an empty file', async () => {
+    const res = await asAdmin('/api/reports/participation?from=2020-01-01&to=2020-01-02&format=csv');
+
+    expect(res.status).toBe(200);
+    expect(res.text.split('\n')[0]).toMatch(/^User,/);
   });
 });
