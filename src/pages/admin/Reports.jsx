@@ -19,10 +19,19 @@ function describeFilters(filters) {
   return parts.join(' · ')
 }
 
+// Default range: the last two weeks, ending today. Two reasons it is not "all
+// time". A range that spans a couple of weeks is what an admin actually wants
+// to look at, and — since the filter compares date(joined_at) in UTC — a
+// multi-day range is immune to the boundary case where an evening's entries
+// have already rolled to the next UTC day. Both fields stay editable.
+function utcDay(offsetDays = 0) {
+  return new Date(Date.now() + offsetDays * 86400000).toISOString().slice(0, 10)
+}
+
 export default function Reports() {
   const [reportType, setReportType] = useState('participation')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [fromDate, setFromDate] = useState(() => utcDay(-13))
+  const [toDate, setToDate] = useState(() => utcDay(0))
   const [serviceId, setServiceId] = useState('')
   const [services, setServices] = useState([])
   
