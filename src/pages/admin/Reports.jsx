@@ -144,11 +144,6 @@ export default function Reports() {
             min={fromDate || undefined}
             onChange={(e) => setToDate(e.target.value)}
           />
-          {/* Entries are filtered on their UTC date, because that is how
-              joined_at is stored. Saying so is the difference between an admin
-              reading an evening's activity as missing and understanding that
-              it landed on the next UTC day. */}
-          <p className="muted">Dates are matched in UTC.</p>
         </div>
 
         <div className="field">
@@ -165,6 +160,14 @@ export default function Reports() {
             ))}
           </select>
         </div>
+
+        {/* Kept this full-width instead of nesting it in one field, since that
+            was making that field's column taller than the others and throwing
+            off the whole row's alignment. Entries get filtered on their UTC
+            date, since that's how joined_at is stored, and it's worth saying
+            so out loud, otherwise an evening's activity just looks missing
+            when really it landed on the next UTC day. */}
+        <p className="muted report-hint">Dates are matched in UTC.</p>
 
         <div className="report-actions">
           <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
