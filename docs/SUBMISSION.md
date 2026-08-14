@@ -16,14 +16,14 @@ Run with `npm run test:coverage`.
 
 | Metric | Result |
 |---|---|
-| Statements | 90.09% (455/505) |
-| Branches | 84.18% (213/253) |
-| Functions | 99.1% (111/112) |
-| Lines | 89.73% (437/487) |
+| Statements | 91.65% (549/599) |
+| Branches | 85.37% (251/294) |
+| Functions | 99.24% (131/132) |
+| Lines | 91.24% (521/571) |
 
-186 tests across 11 suites, all passing: auth and route guards, service
+199 tests across 11 suites, all passing: auth and route guards, service
 and queue management, notifications, history and stats, the report data
-layer, CSV export, and the Smart Wait Engine. We were at 88% after
+layer, CSV and PDF export, and the Smart Wait Engine. We were at 88% after
 assignment 3 and kept it above the 70-80% bar while adding the reporting
 module and the Smart Wait Engine on top.
 
@@ -38,17 +38,12 @@ Each member presents the part they built.
 | 3 | Surafel Kafel | Student joins a queue, shows the smart wait estimate and its provenance line, admin serves a few people, estimate updates from real data | Queue interaction and the smart feature |
 | 4 | Uchenna Okoronkwo | Reports page: filter by date and service, preview, download CSV, open the file, restart the server mid-demo and show the data survived | Reporting and persistence |
 
-Item 4 needs the Admin Reports page live in the frontend to work as
-described. The backend it depends on (endpoints, CSV export, access
-control) is done and tested; the screen itself was still in progress as
-of this draft.
-
 ## 4. Contribution Table
 
 | Group Member | Contribution | Discussion Notes |
 |---|---|---|
 | Armaan Amatya | Authentication middleware (bearer-token verification, database-backed admin role checks) securing all administrator routes, IDOR fixes on profile/history/notifications, frontend token handling and admin route guard, report API routes, CSV export layer, authenticated download helper, auth and report route tests | |
-| Taarik Ashenafi | Admin Reports page (report-type, date-range, and service filters, preview table, CSV download), AdminDashboard rebuilt on live usage statistics, admin navigation, admin-side integration pass | |
+| Taarik Ashenafi | Admin Reports page (report-type, date-range, and service filters, preview table, CSV and PDF download), AdminDashboard rebuilt on live usage statistics, admin navigation, admin-side integration pass | |
 | Surafel Kafel | `served_at` schema migration, Smart Wait Engine (observed service-rate estimation with idle-gap filtering and confidence blending), integration into queue estimates, wait provenance in the user-facing screens, engine tests | |
 | Uchenna Okoronkwo | Report data layer (participation history, service activity, usage statistics with composable date/service filters), report and coverage tests, a foreign-key bug fix in the Smart Wait Engine tests, coverage report, sample report and explanation, submission document | |
 
