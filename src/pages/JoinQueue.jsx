@@ -134,6 +134,18 @@ export default function JoinQueue() {
   const waitProvenance = !selectedWaitModel || selectedWaitModel.source === 'default'
     ? 'using scheduled duration'
     : `based on ${selectedWaitModel.sampleSize} recent visits`
+  // People ahead of whoever this number is for: your own position minus one if
+  // you're already in the line, otherwise everyone currently waiting.
+  const peopleAhead = inSelectedQueue
+    ? Math.max(activeQueue.position - 1, 0)
+    : Math.max(queueLength, 0)
+  // What the pre-engine formula would have quoted. Shown only when the engine
+  // has real evidence and the two actually differ, so the screen makes the case
+  // for the measured estimate rather than the number just looking arbitrary.
+  const scheduledWait = Math.round(peopleAhead * (service?.expectedDuration ?? 0))
+  const showWaitContrast = Boolean(selectedWaitModel)
+    && selectedWaitModel.source !== 'default'
+    && scheduledWait !== estimatedWait
 
   async function handleJoin() {
     if (!user || !service) return
@@ -222,6 +234,8 @@ export default function JoinQueue() {
             </div>
             <p className="muted">
               {loading ? 'Loading queue data…' : waitProvenance}
+              {!loading && showWaitContrast
+                && ` · scheduled duration alone would say ${scheduledWait} min`}
             </p>
           </div>
 
