@@ -182,7 +182,10 @@ export function getQueue(serviceId, userId) {
     }
 
     result.position = position;
-    result.estimatedWait = (position - 1) * waitModel.minutesPerPerson;
+    // minutesPerPerson carries two decimals once the engine has real data, so
+    // round here the way predictWait() already does — otherwise the UI quotes
+    // "48.75 min".
+    result.estimatedWait = Math.round((position - 1) * waitModel.minutesPerPerson);
   }
 
   return result;
