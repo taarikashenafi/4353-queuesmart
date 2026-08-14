@@ -27,6 +27,13 @@ export default function JoinQueue() {
   // One roster fetch per service gives us everything the page shows: how many
   // people are waiting, whether the queue is open, and — if the current user
   // is in the list — their own position.
+  //
+  // We deliberately do not pass ?userId= here: GET /queues/:id 404s when the
+  // user isn't in that particular queue, and this page asks about every
+  // service. So the roster comes back without `estimatedWait` and we derive it
+  // from `waitModel`, which the endpoint always returns. Same formula the
+  // server uses — (people ahead) × minutesPerPerson — so this page and Queue
+  // Status quote the same number.
   const loadQueues = useCallback(async () => {
     const serviceList = await apiGet('/services')
     const rows = await Promise.all(serviceList.map(async (service) => {
@@ -41,10 +48,11 @@ export default function JoinQueue() {
       .map((row) => {
         const index = row.entries.findIndex((entry) => entry.userId === String(user.id))
         if (index < 0) return null
+        const perPerson = row.queue.waitModel?.minutesPerPerson ?? row.service.expectedDuration
         return {
           service: row.service,
           position: index + 1,
-          estimatedWait: row.queue.estimatedWait ?? index * row.service.expectedDuration,
+          estimatedWait: row.queue.estimatedWait ?? Math.round(index * perPerson),
           waitModel: row.queue.waitModel,
         }
       })
@@ -119,10 +127,13 @@ export default function JoinQueue() {
   const selectedWaitModel = waitModels[selectedService] || null
   const estimatedWait = inSelectedQueue
     ? activeQueue.estimatedWait
-    : (selectedWaitModel?.minutesPerPerson ?? service?.expectedDuration ?? 0) * Math.max(queueLength, 0)
-  const waitProvenance = selectedWaitModel?.source === 'default'
+    : Math.round((selectedWaitModel?.minutesPerPerson ?? service?.expectedDuration ?? 0) * Math.max(queueLength, 0))
+  // No model yet — still loading, or a service whose roster we haven't got —
+  // reads as the scheduled duration. "based on 0 recent visits" would claim
+  // evidence we don't have.
+  const waitProvenance = !selectedWaitModel || selectedWaitModel.source === 'default'
     ? 'using scheduled duration'
-    : `based on ${selectedWaitModel?.sampleSize ?? 0} recent visits`
+    : `based on ${selectedWaitModel.sampleSize} recent visits`
 
   async function handleJoin() {
     if (!user || !service) return

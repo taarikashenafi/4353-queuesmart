@@ -249,7 +249,10 @@ const USAGE_COLUMNS = [
   { key: 'serviceName', label: 'Service' },
   { key: 'totalServed', label: 'Served' },
   { key: 'averageWaitMinutes', label: 'Avg wait (min)' },
-  { key: 'busiestHour', label: 'Busiest hour' },
+  // Labelled UTC because that is what strftime reads off the ISO timestamps in
+  // busiestHours(). Without the marker a Houston admin reads 14:00 for a desk
+  // that actually peaks at 9 AM.
+  { key: 'busiestHour', label: 'Busiest hour (UTC)' },
 ];
 
 // Counts entries per hour of day, per service. I kept this as its own query
@@ -340,7 +343,7 @@ export function usageStatisticsReport(filters = {}) {
   const summary = [
     { label: 'Total served', value: rows.reduce((sum, row) => sum + row.totalServed, 0) },
     { label: 'Average wait (min)', value: overallWait.averageWaitMinutes },
-    { label: 'Busiest hour', value: formatHour(hours.overall?.hour) },
+    { label: 'Busiest hour (UTC)', value: formatHour(hours.overall?.hour) },
   ];
 
   return report('Queue Usage Statistics', describeFilters(params), USAGE_COLUMNS, rows, summary);

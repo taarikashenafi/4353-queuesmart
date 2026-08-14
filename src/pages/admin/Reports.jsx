@@ -27,6 +27,9 @@ export default function Reports() {
   const [services, setServices] = useState([])
   
   const [reportData, setReportData] = useState(null)
+  // The report type and query string that actually produced `reportData`.
+  // Exports replay this, never live form state — see handleDownload.
+  const [generated, setGenerated] = useState(null)
   const [loading, setLoading] = useState(false)
   const [downloadingCsv, setDownloadingCsv] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
@@ -54,11 +57,13 @@ export default function Reports() {
     setLoading(true)
     setApiError('')
     setReportData(null)
-    
+    setGenerated(null)
+
     try {
       const q = buildQuery()
       const data = await apiGet(`/reports/${reportType}${q ? `?${q}` : ''}`)
       setReportData(data)
+      setGenerated({ reportType, query: q })
     } catch (err) {
       setApiError(err.message)
     } finally {
@@ -66,15 +71,18 @@ export default function Reports() {
     }
   }
 
+  // Replays the request behind the table on screen. Reading live form state
+  // here would hand you a Service Activity file while a Participation table is
+  // still displayed, any time a filter changed without pressing Generate.
   const handleDownload = async (format) => {
+    if (!generated) return
     if (format === 'csv') setDownloadingCsv(true)
     if (format === 'pdf') setDownloadingPdf(true)
-    
+
     try {
-      const q = buildQuery()
-      const params = new URLSearchParams(q)
+      const params = new URLSearchParams(generated.query)
       params.append('format', format)
-      await apiDownload(`/reports/${reportType}?${params.toString()}`)
+      await apiDownload(`/reports/${generated.reportType}?${params.toString()}`)
     } catch (err) {
       setApiError(err.message)
     } finally {
@@ -127,6 +135,11 @@ export default function Reports() {
             min={fromDate || undefined}
             onChange={(e) => setToDate(e.target.value)}
           />
+          {/* Entries are filtered on their UTC date, because that is how
+              joined_at is stored. Saying so is the difference between an admin
+              reading an evening's activity as missing and understanding that
+              it landed on the next UTC day. */}
+          <p className="muted">Dates are matched in UTC.</p>
         </div>
 
         <div className="field">
@@ -149,9 +162,10 @@ export default function Reports() {
             {loading ? 'Generating…' : 'Generate report'}
           </button>
 
-          {/* Exports re-send the same filters rather than serialising what is on
-              screen, so the file always matches the preview above it. Disabled
-              until a report exists so nobody downloads an empty range by accident. */}
+          {/* Exports replay the snapshot taken when Generate ran, so the file
+              always matches the preview above it even if the form has been
+              changed since. Disabled until a report exists so nobody downloads
+              an empty range by accident. */}
           <button
             className="btn btn-ghost"
             onClick={() => handleDownload('csv')}
