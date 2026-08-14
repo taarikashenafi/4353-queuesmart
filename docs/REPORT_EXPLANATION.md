@@ -38,7 +38,7 @@ show larger numbers from the exact same code.
 | Service | Service name | `services.name` |
 | Served | Count of entries with `status = 'served'` for that service, inside the date range | `COUNT(CASE WHEN qe.status = 'served' ...)` over `queue_entries` joined through `queues` to `services` |
 | Avg wait (min) | Mean of `served_at - joined_at` in minutes, across that service's served entries in range | Computed in SQL with `julianday(served_at) - julianday(joined_at)`, not the `(position - 1) * expected_duration` estimate `/api/stats` uses, since that one is a projection made when someone joined, not a measurement of what actually happened |
-| Busiest hour | The hour of day (0-23, UTC, since that's how every timestamp in this app is stored) with the most `joined_at` entries for that service | `strftime('%H', qe.joined_at)`, grouped and maxed in `busiestHours()` |
+| Busiest hour (UTC) | The hour of day (0-23, UTC, since that's how every timestamp in this app is stored) with the most `joined_at` entries for that service | `strftime('%H', qe.joined_at)`, grouped and maxed in `busiestHours()` |
 
 The footer block (blank line, then label/value pairs) rolls the same
 three figures up across every service in range: total served, overall
