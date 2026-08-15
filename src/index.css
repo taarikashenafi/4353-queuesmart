@@ -155,6 +155,10 @@ h3 { font-size: 1.15rem; }
 .nav-link.active { color: var(--primary); background: var(--primary-soft); }
 .nav-spacer { flex: 1; }
 .nav-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+/* The signed-in address sits next to Log out so it is obvious whose session is
+   about to end. Hidden on narrow screens, where the button alone is enough. */
+.nav-user { color: var(--muted); font-size: 0.88rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .nav-user { display: none; } }
 
 /* ---- Buttons ---- */
 .btn {
