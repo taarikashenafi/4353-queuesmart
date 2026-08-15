@@ -16,13 +16,20 @@ function authHeaders() {
 // Session tokens live in server memory, so a backend restart invalidates the
 // token still sitting in localStorage. Clearing it and bouncing to the login
 // page turns that into a recoverable state instead of endless 401s.
-function handleExpiredSession() {
+// The token is the session, so dropping it is the whole of signing out.
+// Exported because the navbar's Log out button and the expired-session handler
+// below have to leave the client in exactly the same state.
+export function clearSession() {
   try {
     localStorage.removeItem('qs_user')
     localStorage.removeItem('qs_token')
   } catch {
-    // Storage unavailable — the redirect below is still the right move.
+    // Storage unavailable — callers still redirect, which is the important part.
   }
+}
+
+function handleExpiredSession() {
+  clearSession()
 
   if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
     window.location.assign('/login')

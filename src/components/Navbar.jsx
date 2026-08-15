@@ -1,4 +1,5 @@
 import { NavLink, Link } from 'react-router-dom'
+import { clearSession } from '../api/client.js'
 
 // Top navigation. The links describe QueueSmart's intended screen map; each one
 // starts routing once its owner adds the matching <Route> in App.jsx.
@@ -31,6 +32,14 @@ export default function Navbar() {
     navLinks.push({ to: '/admin/reports', label: 'Reports' })
   }
 
+  // A full navigation rather than the router's navigate(): this component reads
+  // the signed-in user from localStorage while rendering, so reloading is what
+  // guarantees the whole app comes back in the signed-out state.
+  function handleLogout() {
+    clearSession()
+    window.location.assign('/login')
+  }
+
   return (
     <header className="nav">
       <div className="nav-inner">
@@ -54,8 +63,19 @@ export default function Navbar() {
         <span className="nav-spacer" />
 
         <div className="nav-actions">
-          <Link to="/login" className="btn btn-ghost btn-sm">Log in</Link>
-          <Link to="/register" className="btn btn-primary btn-sm">Sign up</Link>
+          {user ? (
+            <>
+              <span className="nav-user">{user.email}</span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={handleLogout}>
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="btn btn-ghost btn-sm">Log in</Link>
+              <Link to="/register" className="btn btn-primary btn-sm">Sign up</Link>
+            </>
+          )}
         </div>
       </div>
     </header>
